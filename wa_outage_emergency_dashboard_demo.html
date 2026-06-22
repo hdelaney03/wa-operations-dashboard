@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WA Outage & Emergency Map Dashboard</title>
+
+  <!-- Leaflet map library -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f4f6f8;
+    }
+
+    header {
+      background: #002f6c;
+      color: white;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    header p {
+      margin: 4px 0 0;
+      font-size: 14px;
+      opacity: 0.9;
+    }
+
+    .status-pill {
+      background: #ffcc00;
+      color: #1a1a1a;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-weight: bold;
+      font-size: 13px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      height: calc(100vh - 76px);
+    }
+
+    aside {
+      background: white;
+      padding: 18px;
+      border-right: 1px solid #d9dfe7;
+      overflow-y: auto;
+    }
+
+    aside h2 {
+      margin-top: 0;
+      font-size: 18px;
+      color: #002f6c;
+    }
+
+    .card {
+      border: 1px solid #d9dfe7;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 14px;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 15px;
+    }
+
+    .card p {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.4;
+      color: #444;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 10px 0;
+      font-size: 14px;
+    }
+
+    .dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .red { background: #d71920; }
+    .orange { background: #f58220; }
+    .yellow { background: #ffd200; }
+    .blue { background: #0072ce; }
+    .purple { background: #7a3db8; }
+
+    .layer-toggle {
+      display: block;
+      margin: 10px 0;
+      font-size: 14px;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    .notice {
+      background: #fff7d6;
+      border: 1px solid #ffe08a;
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    @media (max-width: 800px) {
+      .layout {
+        grid-template-columns: 1fr;
+        height: auto;
+      }
+
+      aside {
+        border-right: none;
+        border-bottom: 1px solid #d9dfe7;
+      }
+
+      #map {
+        height: 70vh;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div>
+      <h1>WA Outage & Emergency Dashboard</h1>
+      <p>Demo overlay map for Western Power outages, Emergency WA alerts and BOM warnings</p>
+    </div>
+    <div class="status-pill">Demo data only</div>
+  </header>
+
+  <div class="layout">
+    <aside>
+      <h2>Map Layers</h2>
+
+      <label class="layer-toggle">
+        <input type="checkbox" id="outagesToggle" checked />
+        Western Power outage examples
+      </label>
+
+      <label class="layer-toggle">
+        <input type="checkbox" id="plannedToggle" checked />
+        Planned outage examples
+      </label>
+
+      <label class="layer-toggle">
+        <input type="checkbox" id="emergencyToggle" checked />
+        Emergency WA warning examples
+      </label>
+
+      <label class="layer-toggle">
+        <input type="checkbox" id="weatherToggle" checked />
+        BOM weather warning examples
+      </label>
+
+      <div class="card">
+        <h3>Legend</h3>
+        <div class="legend-item"><span class="dot red"></span> Current outage</div>
+        <div class="legend-item"><span class="dot orange"></span> Planned outage</div>
+        <div class="legend-item"><span class="dot yellow"></span> Emergency warning</div>
+        <div class="legend-item"><span class="dot blue"></span> Weather warning</div>
+        <div class="legend-item"><span class="dot purple"></span> Network / asset note</div>
+      </div>
+
+      <div class="card">
+        <h3>What this can become</h3>
+        <p>
+          This dashboard can be connected to approved feeds such as GeoJSON, KML,
+          WMS, ArcGIS layers, RSS feeds or an internal outage system feed.
+        </p>
+      </div>
+
+      <div class="notice">
+        <strong>Important:</strong> Western Power outage data shown here is fake demo data.
+        To show real outage areas, you would need an approved source such as an internal GIS,
+        OMS/ADMS feed, GeoJSON, KML, ArcGIS layer or API.
+      </div>
+    </aside>
+
+    <main>
+      <div id="map"></div>
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    const map = L.map("map").setView([-31.9505, 115.8605], 8);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+
+    function markerIcon(color) {
+      return new L.Icon({
+        iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-" + color + ".png",
+        shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+      });
+    }
+
+    const outageLayer = L.layerGroup([
+      L.marker([-32.126, 115.858], { icon: markerIcon("red") })
+        .bindPopup("<strong>Current Outage</strong><br>Cockburn area<br>Customers affected: demo only<br>Status: crew assigned"),
+
+      L.marker([-31.899, 115.807], { icon: markerIcon("red") })
+        .bindPopup("<strong>Current Outage</strong><br>Stirling area<br>Customers affected: demo only<br>Status: investigating")
+    ]).addTo(map);
+
+    const plannedLayer = L.layerGroup([
+      L.marker([-32.065, 115.752], { icon: markerIcon("orange") })
+        .bindPopup("<strong>Planned Outage</strong><br>Fremantle area<br>Window: demo only<br>Reason: maintenance"),
+
+      L.marker([-31.744, 115.766], { icon: markerIcon("orange") })
+        .bindPopup("<strong>Planned Outage</strong><br>Joondalup area<br>Window: demo only<br>Reason: network works")
+    ]).addTo(map);
+
+    const emergencyLayer = L.layerGroup([
+      L.circle([-32.32, 116.02], {
+        radius: 12000,
+        color: "#ffd200",
+        fillColor: "#ffd200",
+        fillOpacity: 0.25
+      }).bindPopup("<strong>Emergency WA Warning</strong><br>Example warning zone<br>Check official Emergency WA source.")
+    ]).addTo(map);
+
+    const weatherLayer = L.layerGroup([
+      L.circle([-31.95, 115.86], {
+        radius: 28000,
+        color: "#0072ce",
+        fillColor: "#0072ce",
+        fillOpacity: 0.15
+      }).bindPopup("<strong>BOM Weather Warning</strong><br>Example Perth metro weather warning overlay.")
+    ]).addTo(map);
+
+    function handleToggle(id, layer) {
+      document.getElementById(id).addEventListener("change", function () {
+        if (this.checked) {
+          map.addLayer(layer);
+        } else {
+          map.removeLayer(layer);
+        }
+      });
+    }
+
+    handleToggle("outagesToggle", outageLayer);
+    handleToggle("plannedToggle", plannedLayer);
+    handleToggle("emergencyToggle", emergencyLayer);
+    handleToggle("weatherToggle", weatherLayer);
+  </script>
+</body>
+</html>
