@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WA Dashboard</title>
+</head>
+<body>
+  <h1>WA Operations Dashboard</h1>
+  <p>If you can see this, GitHub Pages is working.</p>
+
+  <h2>Quick Links</h2>
+  <p><a href="https://www.westernpower.com.au/faults-outages/power-outages/">Western Power Outage Map</a></p>
+  <p><a href="https://www.emergency.wa.gov.au/">Emergency WA</a></p>
+  <p><a href="https://www.bom.gov.au/wa/warnings/">BOM WA Warnings</a></p>
+</body>
+</html>
