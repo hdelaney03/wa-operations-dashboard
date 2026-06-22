@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WA Operations Dashboard</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    :root {
+      --wp-blue: #002f6c;
+      --wp-light-blue: #0072ce;
+      --wp-yellow: #ffcc00;
+      --danger: #d71920;
+      --warning: #f58220;
+      --good: #1f9d55;
+      --bg: #eef3f8;
+      --panel: #ffffff;
+      --text: #1d2733;
+      --muted: #607080;
+      --border: #d7e0ea;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    header {
+      background: linear-gradient(90deg, var(--wp-blue), #004b93);
+      color: white;
+      padding: 16px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.18);
+    }
+
+    .title h1 {
+      margin: 0;
+      font-size: 24px;
+    }
+
+    .title p {
+      margin: 4px 0 0;
+      font-size: 13px;
+      opacity: 0.9;
+    }
+
+    .top-stats {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .stat {
+      background: rgba(255,255,255,0.13);
+      border: 1px solid rgba(255,255,255,0.22);
+      padding: 10px 12px;
+      border-radius: 12px;
+      min-width: 120px;
+    }
+
+    .stat span {
+      display: block;
+      font-size: 11px;
+      opacity: 0.8;
+      text-transform: uppercase;
+    }
+
+    .stat strong {
+      display: block;
+      margin-top: 3px;
+      font-size: 16px;
+    }
+
+    .layout {
+      height: calc(100vh - 92px);
+      display: grid;
+      grid-template-columns: 340px 1fr 330px;
+      gap: 12px;
+      padding: 12px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      overflow: hidden;
+    }
+
+    .panel-content {
+      padding: 16px;
+      overflow-y: auto;
+      height: 100%;
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 18px;
+      color: var(--wp-blue);
+    }
+
+    h3 {
+      margin: 0 0 7px;
+      font-size: 15px;
+    }
+
+    p {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .source-card {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 13px;
+      margin-bottom: 12px;
+      background: #fff;
+    }
+
+    .source-card p { margin: 0 0 10px; }
+
+    .btn {
+      display: inline-block;
+      text-decoration: none;
+      background: var(--wp-blue);
+      color: white;
+      padding: 9px 12px;
+      border-radius: 10px;
+      font-weight: bold;
+      font-size: 13px;
+    }
+
+    .btn.secondary { background: var(--wp-light-blue); }
+    .btn.warning { background: var(--warning); }
+    .btn.danger { background: var(--danger); }
+    .btn.yellow {
+      background: var(--wp-yellow);
+      color: #1a1a1a;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      border-radius: 18px;
+      background: #dbe7f1;
+    }
+
+    .map-wrap {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .map-banner {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      background: rgba(255,255,255,0.95);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 13px;
+      box-shadow: 0 2px 7px rgba(0,0,0,0.12);
+    }
+
+    .layer-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 11px 0;
+      border-bottom: 1px solid #edf1f5;
+      font-size: 14px;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: bold;
+    }
+
+    .pill.demo {
+      background: #fff1b8;
+      color: #5a4300;
+    }
+
+    .legend {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .red { background: var(--danger); }
+    .orange { background: var(--warning); }
+    .yellow-dot { background: var(--wp-yellow); }
+    .blue { background: var(--wp-light-blue); }
+    .green { background: var(--good); }
+
+    .notice {
+      background: #fff8db;
+      border: 1px solid #ffe08a;
+      border-radius: 14px;
+      padding: 12px;
+      margin-top: 12px;
+      font-size: 13px;
+      color: #584500;
+      line-height: 1.45;
+    }
+
+    .status-list { display: grid; gap: 10px; }
+
+    .status-item {
+      display: grid;
+      grid-template-columns: 10px 1fr;
+      gap: 10px;
+      align-items: start;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 11px;
+    }
+
+    .status-item strong {
+      display: block;
+      font-size: 13px;
+    }
+
+    .status-item span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .mini-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-top: 3px;
+    }
+
+    footer {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 14px;
+      line-height: 1.4;
+    }
+
+    .map-error {
+      display: none;
+      padding: 18px;
+      background: #fff3f3;
+      color: #6b0000;
+      border: 1px solid #ffc4c4;
+      border-radius: 14px;
+      margin: 16px;
+      z-index: 2000;
+      position: absolute;
+      top: 55px;
+      left: 16px;
+      right: 16px;
+    }
+
+    @media (max-width: 1100px) {
+      .layout { grid-template-columns: 310px 1fr; }
+      .right-panel { display: none; }
+    }
+
+    @media (max-width: 760px) {
+      .layout {
+        grid-template-columns: 1fr;
+        height: auto;
+      }
+
+      .map-wrap { height: 70vh; }
+      .right-panel { display: block; }
+      .stat { flex: 1; }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="title">
+      <h1>WA Operations Dashboard</h1>
+      <p>Personal dashboard for outages, emergency links, weather warnings and WA operational awareness</p>
+    </div>
+
+    <div class="top-stats">
+      <div class="stat">
+        <span>Local time</span>
+        <strong id="clock">--:--</strong>
+      </div>
+      <div class="stat">
+        <span>Mode</span>
+        <strong>Demo</strong>
+      </div>
+      <div class="stat">
+        <span>Map</span>
+        <strong>WA</strong>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="panel">
+      <div class="panel-content">
+        <h2>Official Sources</h2>
+
+        <div class="source-card">
+          <h3>⚡ Western Power Outages</h3>
+          <p>Open the official outage map in a new tab. Use this for actual current outage information.</p>
+          <a class="btn yellow" href="https://www.westernpower.com.au/faults-outages/power-outages/" target="_blank" rel="noopener">Open Outage Map</a>
+        </div>
+
+        <div class="source-card">
+          <h3>🚨 Emergency WA</h3>
+          <p>Warnings, incidents, fire danger ratings and total fire bans.</p>
+          <a class="btn danger" href="https://www.emergency.wa.gov.au/" target="_blank" rel="noopener">Open Emergency WA</a>
+        </div>
+
+        <div class="source-card">
+          <h3>🌧 BOM Warnings</h3>
+          <p>Official weather warnings and WA forecast information.</p>
+          <a class="btn secondary" href="https://www.bom.gov.au/wa/warnings/" target="_blank" rel="noopener">Open BOM WA Warnings</a>
+        </div>
+
+        <div class="source-card">
+          <h3>🔥 Fire Danger Ratings</h3>
+          <p>Quick access through Emergency WA for fire danger and total fire bans.</p>
+          <a class="btn warning" href="https://www.emergency.wa.gov.au/" target="_blank" rel="noopener">Open Fire Info</a>
+        </div>
+
+        <div class="notice">
+          This page does not scrape Western Power or Emergency WA. It gives you a safe dashboard with official quick-launch links and demo overlays.
+        </div>
+      </div>
+    </aside>
+
+    <main class="panel map-wrap">
+      <div class="map-banner">Demo map overlays — official data opens from the source buttons</div>
+      <div id="map"></div>
+      <div id="map-error" class="map-error">
+        The map library did not load. Check that GitHub Pages is online and that your browser/network allows scripts from unpkg.com and map tiles from openstreetmap.org.
+      </div>
+    </main>
+
+    <aside class="panel right-panel">
+      <div class="panel-content">
+        <h2>Layers</h2>
+
+        <label class="layer-toggle">
+          <span>Current outage examples <span class="pill demo">Demo</span></span>
+          <input type="checkbox" id="outagesToggle" checked />
+        </label>
+
+        <label class="layer-toggle">
+          <span>Planned outage examples <span class="pill demo">Demo</span></span>
+          <input type="checkbox" id="plannedToggle" checked />
+        </label>
+
+        <label class="layer-toggle">
+          <span>Emergency warning area <span class="pill demo">Demo</span></span>
+          <input type="checkbox" id="emergencyToggle" checked />
+        </label>
+
+        <label class="layer-toggle">
+          <span>Weather warning area <span class="pill demo">Demo</span></span>
+          <input type="checkbox" id="weatherToggle" checked />
+        </label>
+
+        <div class="source-card">
+          <h3>Legend</h3>
+          <div class="legend">
+            <div class="legend-item"><span class="dot red"></span> Current outage</div>
+            <div class="legend-item"><span class="dot orange"></span> Planned outage</div>
+            <div class="legend-item"><span class="dot yellow-dot"></span> Emergency warning</div>
+            <div class="legend-item"><span class="dot blue"></span> Weather warning</div>
+            <div class="legend-item"><span class="dot green"></span> Reference location</div>
+          </div>
+        </div>
+
+        <h2>Demo Feed Status</h2>
+
+        <div class="status-list">
+          <div class="status-item">
+            <span class="mini-dot green"></span>
+            <div>
+              <strong>Map loaded</strong>
+              <span>OpenStreetMap base layer</span>
+            </div>
+          </div>
+
+          <div class="status-item">
+            <span class="mini-dot red"></span>
+            <div>
+              <strong>Western Power layer</strong>
+              <span>Demo only — official map opens separately</span>
+            </div>
+          </div>
+
+          <div class="status-item">
+            <span class="mini-dot orange"></span>
+            <div>
+              <strong>Emergency/Weather layers</strong>
+              <span>Demo only — official sources linked</span>
+            </div>
+          </div>
+        </div>
+
+        <footer>
+          Built for personal operational awareness. Always verify incidents, outages and warnings using official sources.
+        </footer>
+      </div>
+    </aside>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    function updateClock() {
+      const now = new Date();
+      const text = now.toLocaleTimeString("en-AU", {
+        timeZone: "Australia/Perth",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+      document.getElementById("clock").textContent = text;
+    }
+
+    updateClock();
+    setInterval(updateClock, 30000);
+
+    setTimeout(function () {
+      if (typeof L === "undefined") {
+        document.getElementById("map-error").style.display = "block";
+      }
+    }, 1500);
+
+    if (typeof L !== "undefined") {
+      const map = L.map("map").setView([-31.9505, 115.8605], 8);
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap contributors"
+      }).addTo(map);
+
+      function divIcon(label, colour) {
+        return L.divIcon({
+          className: "",
+          html: '<div style="background:' + colour + ';width:28px;height:28px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:13px;">' + label + '</div>',
+          iconSize: [28, 28],
+          iconAnchor: [14, 14]
+        });
+      }
+
+      const outageLayer = L.layerGroup([
+        L.marker([-32.126, 115.858], { icon: divIcon("⚡", "#d71920") }).bindPopup("<strong>Current Outage Example</strong><br>Cockburn area<br>Status: demo only"),
+        L.marker([-31.899, 115.807], { icon: divIcon("⚡", "#d71920") }).bindPopup("<strong>Current Outage Example</strong><br>Stirling area<br>Status: demo only"),
+        L.marker([-32.007, 115.918], { icon: divIcon("⚡", "#d71920") }).bindPopup("<strong>Current Outage Example</strong><br>Cannington area<br>Status: demo only")
+      ]).addTo(map);
+
+      const plannedLayer = L.layerGroup([
+        L.marker([-32.065, 115.752], { icon: divIcon("P", "#f58220") }).bindPopup("<strong>Planned Outage Example</strong><br>Fremantle area<br>Maintenance window: demo only"),
+        L.marker([-31.744, 115.766], { icon: divIcon("P", "#f58220") }).bindPopup("<strong>Planned Outage Example</strong><br>Joondalup area<br>Maintenance window: demo only")
+      ]).addTo(map);
+
+      const emergencyLayer = L.layerGroup([
+        L.circle([-32.32, 116.02], {
+          radius: 12000,
+          color: "#ffcc00",
+          fillColor: "#ffcc00",
+          fillOpacity: 0.28,
+          weight: 2
+        }).bindPopup("<strong>Emergency WA Example Area</strong><br>Demo warning zone only. Check Emergency WA for official alerts.")
+      ]).addTo(map);
+
+      const weatherLayer = L.layerGroup([
+        L.circle([-31.95, 115.86], {
+          radius: 28000,
+          color: "#0072ce",
+          fillColor: "#0072ce",
+          fillOpacity: 0.15,
+          weight: 2
+        }).bindPopup("<strong>BOM Weather Warning Example</strong><br>Demo weather overlay only. Check BOM for official warnings.")
+      ]).addTo(map);
+
+      function handleToggle(id, layer) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener("change", function () {
+          if (this.checked) map.addLayer(layer);
+          else map.removeLayer(layer);
+        });
+      }
+
+      handleToggle("outagesToggle", outageLayer);
+      handleToggle("plannedToggle", plannedLayer);
+      handleToggle("emergencyToggle", emergencyLayer);
+      handleToggle("weatherToggle", weatherLayer);
+
+      setTimeout(function () {
+        map.invalidateSize();
+      }, 400);
+    }
+  </script>
+</body>
+</html>
