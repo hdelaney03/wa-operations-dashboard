@@ -4,7 +4,7 @@ import { parseSyndicationFeed, parseEmergencyFeed } from './parsers.js';
 const BOM_WA_RSS = 'https://www.bom.gov.au/fwo/IDZ00060.warnings_wa.xml';
 const EMERGENCY_WA_CAP_AU = 'https://api.emergency.wa.gov.au/v1/capau';
 const WESTERN_POWER_OUTAGES = 'https://services2.arcgis.com/tBLxde4cxSlNUxsM/arcgis/rest/services/WP_Outage_Prod/FeatureServer/0/query';
-const SNAPSHOT_KEY = 'feeds-v6';
+const SNAPSHOT_KEY = 'feeds-v7';
 const FIVE_MINUTES = 5 * 60 * 1000;
 
 function corsHeaders(request, env) {
@@ -29,7 +29,7 @@ async function fetchText(url) {
   const response = await fetch(url, {
     headers: {
       'Accept': 'application/cap+xml, application/xml, application/rss+xml, application/atom+xml, text/xml;q=0.9, */*;q=0.1',
-      'User-Agent': 'WA-Operations-Dashboard/6.0 (personal situational awareness)'
+      'User-Agent': 'WA-Operations-Dashboard/7.0 (personal situational awareness)'
     },
     redirect: 'follow'
   });
@@ -41,7 +41,7 @@ async function fetchJson(url) {
   const response = await fetch(url, {
     headers: {
       'Accept': 'application/geo+json, application/json;q=0.9, */*;q=0.1',
-      'User-Agent': 'WA-Operations-Dashboard/6.0 (personal situational awareness)'
+      'User-Agent': 'WA-Operations-Dashboard/7.0 (personal situational awareness)'
     },
     redirect: 'follow'
   });
@@ -59,30 +59,45 @@ function westernPowerUrl() {
   return url.toString();
 }
 
-function isPlanned(props = {}) {
+function classifyWesternPower(props = {}) {
+  const type = String(props.OUTAGETYPE || '').trim().toUpperCase();
+
+  // Western Power's public outage tracker uses F for planned/future works and U for unplanned outages.
+  // Prefer this code over PLANNEDOUTAGE because observed ArcGIS records can contain contradictory text.
+  if (type === 'F') return { category: 'planned', planned: true, classificationSource: 'OUTAGETYPE:F' };
+  if (type === 'U') return { category: 'unplanned', planned: false, classificationSource: 'OUTAGETYPE:U' };
+
   const explicit = String(props.PLANNEDOUTAGE ?? '').trim().toLowerCase();
-  if (['true', 'yes', 'y', '1', 'planned'].includes(explicit)) return true;
-  if (['false', 'no', 'n', '0', 'unplanned', 'not planned'].includes(explicit)) return false;
-  const type = String(props.OUTAGETYPE || '').trim().toLowerCase();
-  if (type.includes('unplanned') || type.includes('not planned')) return false;
-  return type.includes('planned');
+  if (explicit === 'planned' || ['true', 'yes', 'y', '1'].includes(explicit)) {
+    return { category: 'planned', planned: true, classificationSource: 'PLANNEDOUTAGE' };
+  }
+  if (explicit === 'unplanned' || explicit === 'not planned' || ['false', 'no', 'n', '0'].includes(explicit)) {
+    return { category: 'unplanned', planned: false, classificationSource: 'PLANNEDOUTAGE' };
+  }
+
+  return { category: 'unknown', planned: null, classificationSource: 'unknown' };
 }
 
 function normalizeWesternPower(geojson) {
   const features = Array.isArray(geojson?.features) ? geojson.features : [];
   return features.map((feature, index) => {
     const p = feature?.properties || {};
-    const planned = isPlanned(p);
+    const classification = classifyWesternPower(p);
     const area = String(p.AFFECTED_AREA || '').trim();
     const incident = String(p.INCIDENTREF || '').trim();
     const enar = String(p.ENARNUMBER || '').trim();
     const objectId = p.OBJECTID ?? index + 1;
+    const label = classification.category === 'planned' ? 'Planned' : classification.category === 'unplanned' ? 'Unplanned' : 'Unknown type';
+
     return {
       id: incident || enar || `wp-${objectId}`,
       source: 'Western Power',
-      title: `${planned ? 'Planned' : 'Unplanned'} outage${area ? ` – ${area}` : ''}`,
+      title: `${label} outage${area ? ` – ${area}` : ''}`,
       outageType: String(p.OUTAGETYPE || '').trim(),
-      planned,
+      rawPlannedOutage: String(p.PLANNEDOUTAGE ?? '').trim(),
+      outageCategory: classification.category,
+      planned: classification.planned,
+      classificationSource: classification.classificationSource,
       incidentRef: incident,
       enarNumber: enar,
       outageStartTime: p.OUTAGESTARTTIME || null,
@@ -115,7 +130,7 @@ export class FeedCoordinator extends DurableObject {
 
     const updatedAt = new Date().toISOString();
     const snapshot = {
-      version: 6,
+      version: 7,
       updatedAt,
       bom: existing?.bom || [],
       emergency: existing?.emergency || [],
@@ -157,9 +172,15 @@ export class FeedCoordinator extends DurableObject {
     try {
       const geojson = await fetchJson(westernPowerUrl());
       snapshot.westernPower = normalizeWesternPower(geojson);
+      const plannedCount = snapshot.westernPower.filter(x => x.outageCategory === 'planned').length;
+      const unplannedCount = snapshot.westernPower.filter(x => x.outageCategory === 'unplanned').length;
+      const unknownCount = snapshot.westernPower.filter(x => x.outageCategory === 'unknown').length;
       snapshot.sources.westernPower = {
         ok: true,
         count: snapshot.westernPower.length,
+        plannedCount,
+        unplannedCount,
+        unknownCount,
         fetchedAt: updatedAt,
         format: 'ArcGIS GeoJSON'
       };
@@ -213,7 +234,7 @@ export default {
       return json({
         ...health,
         service: 'WA Operations Dashboard feed service',
-        version: 6,
+        version: 7,
         endpoints: ['/api/health', '/api/feeds']
       }, 200, { ...cors, 'Cache-Control': 'no-store' });
     }
