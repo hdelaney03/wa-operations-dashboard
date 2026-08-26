@@ -97,7 +97,7 @@ export function parseCapAu(xml, { defaultLink = 'https://www.emergency.wa.gov.au
 
     const link = firstTag(info, ['web']) || defaultLink;
     const published = firstTag(alert, ['sent']) || firstTag(info, ['effective', 'onset']);
-    const id = firstTag(alert, ['identifier']) || `${source}-${index}-${title}`;
+    const id = firstTag(alert, ['identifier']) || `Emergency-WA-${index}-${title}`;
     const severity = stripHtml(firstTag(info, ['severity']));
     const urgency = stripHtml(firstTag(info, ['urgency']));
     const certainty = stripHtml(firstTag(info, ['certainty']));
