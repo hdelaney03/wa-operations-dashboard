@@ -184,12 +184,12 @@ function plotOutages(){
   for(const i of feedData.westernPower||[]){
     if(!i.geometry)continue;
     const category=wpCategory(i);
-    const color=category==='planned'?'#eab308':category==='unplanned'?'#c2410c':'#64748b';
+    const color=category==='planned'?'#0f9d8a':category==='unplanned'?'#dc2626':'#64748b';
     const customers=i.customersImpacted!==null&&i.customersImpacted!==undefined?`${Number(i.customersImpacted).toLocaleString('en-AU')} customers impacted`:'Customer count unavailable';
     const label=category==='planned'?'PLANNED':category==='unplanned'?'UNPLANNED':'TYPE UNKNOWN';
     const popup=`<strong>${label}: ${esc(i.affectedArea||'Western Power outage')}</strong><br>${esc(customers)}${i.incidentRef?`<br>Incident: ${esc(i.incidentRef)}`:''}${i.outageStartTime?`<br>Start: ${esc(fmt(i.outageStartTime))}`:''}${i.estimatedRestorationTime?`<br>${category==='planned'?'Finish':'Est. restoration'}: ${esc(fmt(i.estimatedRestorationTime))}`:''}<br><a href="${esc(i.link)}" target="_blank">Western Power outage map</a>`;
     try{
-      L.geoJSON(i.geometry,{style:{color,weight:category==='unplanned'?3:2,fillColor:color,fillOpacity:category==='planned'?.12:category==='unplanned'?.23:.12}}).bindPopup(popup).addTo(outageLayer);
+      L.geoJSON(i.geometry,{style:{color,weight:category==='unplanned'?3:2,fillColor:color,fillOpacity:category==='planned'?.14:category==='unplanned'?.26:.12}}).bindPopup(popup).addTo(outageLayer);
       plotted++;
     }catch(e){console.warn('Unable to plot Western Power geometry',e)}
   }
