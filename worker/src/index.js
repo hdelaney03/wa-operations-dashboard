@@ -3,7 +3,8 @@ import { parseSyndicationFeed, parseEmergencyFeed } from './parsers.js';
 
 const BOM_WA_RSS = 'https://www.bom.gov.au/fwo/IDZ00060.warnings_wa.xml';
 const EMERGENCY_WA_CAP_AU = 'https://api.emergency.wa.gov.au/v1/capau';
-const SNAPSHOT_KEY = 'feeds-v5';
+const WESTERN_POWER_OUTAGES = 'https://services2.arcgis.com/tBLxde4cxSlNUxsM/arcgis/rest/services/WP_Outage_Prod/FeatureServer/0/query';
+const SNAPSHOT_KEY = 'feeds-v6';
 const FIVE_MINUTES = 5 * 60 * 1000;
 
 function corsHeaders(request, env) {
@@ -28,12 +29,73 @@ async function fetchText(url) {
   const response = await fetch(url, {
     headers: {
       'Accept': 'application/cap+xml, application/xml, application/rss+xml, application/atom+xml, text/xml;q=0.9, */*;q=0.1',
-      'User-Agent': 'WA-Operations-Dashboard/5.0 (personal situational awareness)'
+      'User-Agent': 'WA-Operations-Dashboard/6.0 (personal situational awareness)'
     },
     redirect: 'follow'
   });
   if (!response.ok) throw new Error(`HTTP ${response.status} from ${new URL(url).hostname}`);
   return response.text();
+}
+
+async function fetchJson(url) {
+  const response = await fetch(url, {
+    headers: {
+      'Accept': 'application/geo+json, application/json;q=0.9, */*;q=0.1',
+      'User-Agent': 'WA-Operations-Dashboard/6.0 (personal situational awareness)'
+    },
+    redirect: 'follow'
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status} from ${new URL(url).hostname}`);
+  return response.json();
+}
+
+function westernPowerUrl() {
+  const url = new URL(WESTERN_POWER_OUTAGES);
+  url.searchParams.set('where', '1=1');
+  url.searchParams.set('outFields', 'OBJECTID,OUTAGETYPE,INCIDENTREF,ENARNUMBER,OUTAGESTARTTIME,ESTIMATEDRESTORATIONTIME,PLANNEDOUTAGE,NOCUSTOMERSIMPACTED,TIMEADDED,AFFECTED_AREA,AFFECTED_AREA_NOCUSTOMERS,Tags');
+  url.searchParams.set('returnGeometry', 'true');
+  url.searchParams.set('outSR', '4326');
+  url.searchParams.set('f', 'geojson');
+  return url.toString();
+}
+
+function isPlanned(props = {}) {
+  const explicit = String(props.PLANNEDOUTAGE ?? '').trim().toLowerCase();
+  if (['true', 'yes', 'y', '1', 'planned'].includes(explicit)) return true;
+  if (['false', 'no', 'n', '0', 'unplanned', 'not planned'].includes(explicit)) return false;
+  const type = String(props.OUTAGETYPE || '').trim().toLowerCase();
+  if (type.includes('unplanned') || type.includes('not planned')) return false;
+  return type.includes('planned');
+}
+
+function normalizeWesternPower(geojson) {
+  const features = Array.isArray(geojson?.features) ? geojson.features : [];
+  return features.map((feature, index) => {
+    const p = feature?.properties || {};
+    const planned = isPlanned(p);
+    const area = String(p.AFFECTED_AREA || '').trim();
+    const incident = String(p.INCIDENTREF || '').trim();
+    const enar = String(p.ENARNUMBER || '').trim();
+    const objectId = p.OBJECTID ?? index + 1;
+    return {
+      id: incident || enar || `wp-${objectId}`,
+      source: 'Western Power',
+      title: `${planned ? 'Planned' : 'Unplanned'} outage${area ? ` – ${area}` : ''}`,
+      outageType: String(p.OUTAGETYPE || '').trim(),
+      planned,
+      incidentRef: incident,
+      enarNumber: enar,
+      outageStartTime: p.OUTAGESTARTTIME || null,
+      estimatedRestorationTime: p.ESTIMATEDRESTORATIONTIME || null,
+      customersImpacted: Number.isFinite(Number(p.NOCUSTOMERSIMPACTED)) ? Number(p.NOCUSTOMERSIMPACTED) : null,
+      affectedArea: area,
+      affectedAreaNoCustomers: String(p.AFFECTED_AREA_NOCUSTOMERS || '').trim(),
+      timeAdded: p.TIMEADDED || null,
+      tags: String(p.Tags || '').trim(),
+      geometry: feature?.geometry || null,
+      link: 'https://www.westernpower.com.au/faults-outages/power-outages/'
+    };
+  });
 }
 
 function isFresh(snapshot) {
@@ -53,13 +115,15 @@ export class FeedCoordinator extends DurableObject {
 
     const updatedAt = new Date().toISOString();
     const snapshot = {
-      version: 5,
+      version: 6,
       updatedAt,
       bom: existing?.bom || [],
       emergency: existing?.emergency || [],
+      westernPower: existing?.westernPower || [],
       sources: {
         bom: { ok: false, count: existing?.bom?.length || 0 },
-        emergency: { ok: false, count: existing?.emergency?.length || 0 }
+        emergency: { ok: false, count: existing?.emergency?.length || 0 },
+        westernPower: { ok: false, count: existing?.westernPower?.length || 0 }
       }
     };
 
@@ -69,17 +133,10 @@ export class FeedCoordinator extends DurableObject {
         source: 'BOM',
         defaultLink: 'https://www.bom.gov.au/wa/warnings/'
       });
-      snapshot.sources.bom = {
-        ok: true,
-        count: snapshot.bom.length,
-        fetchedAt: updatedAt,
-        format: 'RSS'
-      };
+      snapshot.sources.bom = { ok: true, count: snapshot.bom.length, fetchedAt: updatedAt, format: 'RSS' };
     } catch (error) {
       snapshot.sources.bom = {
-        ok: false,
-        count: snapshot.bom.length,
-        error: 'fetch_failed',
+        ok: false, count: snapshot.bom.length, error: 'fetch_failed',
         message: String(error?.message || error)
       };
     }
@@ -89,17 +146,26 @@ export class FeedCoordinator extends DurableObject {
       snapshot.emergency = parseEmergencyFeed(xml, {
         defaultLink: 'https://www.emergency.wa.gov.au/'
       });
-      snapshot.sources.emergency = {
-        ok: true,
-        count: snapshot.emergency.length,
-        fetchedAt: updatedAt,
-        format: 'CAP-AU'
-      };
+      snapshot.sources.emergency = { ok: true, count: snapshot.emergency.length, fetchedAt: updatedAt, format: 'CAP-AU' };
     } catch (error) {
       snapshot.sources.emergency = {
-        ok: false,
-        count: snapshot.emergency.length,
-        error: 'fetch_failed',
+        ok: false, count: snapshot.emergency.length, error: 'fetch_failed',
+        message: String(error?.message || error)
+      };
+    }
+
+    try {
+      const geojson = await fetchJson(westernPowerUrl());
+      snapshot.westernPower = normalizeWesternPower(geojson);
+      snapshot.sources.westernPower = {
+        ok: true,
+        count: snapshot.westernPower.length,
+        fetchedAt: updatedAt,
+        format: 'ArcGIS GeoJSON'
+      };
+    } catch (error) {
+      snapshot.sources.westernPower = {
+        ok: false, count: snapshot.westernPower.length, error: 'fetch_failed',
         message: String(error?.message || error)
       };
     }
@@ -135,12 +201,8 @@ export default {
   async fetch(request, env) {
     const cors = corsHeaders(request, env);
 
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: cors });
-    }
-    if (request.method !== 'GET') {
-      return json({ error: 'method_not_allowed' }, 405, cors);
-    }
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+    if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, cors);
 
     const url = new URL(request.url);
     const stub = coordinator(env);
@@ -151,12 +213,9 @@ export default {
       return json({
         ...health,
         service: 'WA Operations Dashboard feed service',
-        version: 5,
+        version: 6,
         endpoints: ['/api/health', '/api/feeds']
-      }, 200, {
-        ...cors,
-        'Cache-Control': 'no-store'
-      });
+      }, 200, { ...cors, 'Cache-Control': 'no-store' });
     }
 
     if (url.pathname === '/api/feeds') {
