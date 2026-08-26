@@ -4,7 +4,20 @@
   "main": "src/index.js",
   "compatibility_date": "2026-08-26",
   "vars": {
-    "ALLOWED_ORIGIN": "https://hdelaney03.github.io",
-    "EMERGENCY_WA_RSS_URL": ""
-  }
+    "ALLOWED_ORIGIN": "https://hdelaney03.github.io"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "FEED_COORDINATOR",
+        "class_name": "FeedCoordinator"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["FeedCoordinator"]
+    }
+  ]
 }
