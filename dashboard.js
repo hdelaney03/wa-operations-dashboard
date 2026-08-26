@@ -87,23 +87,44 @@ function src(item){
   return 'bom';
 }
 
+function wpCategory(i){
+  if(i?.outageCategory)return i.outageCategory;
+  if(i?.planned===true)return 'planned';
+  if(i?.planned===false)return 'unplanned';
+  return 'unknown';
+}
+
 function sourceStatus(key,dot,text,count){
   const arrays={bom:feedData.bom,emergency:feedData.emergency,westernPower:feedData.westernPower};
   const arr=arrays[key]||[];
   const s=feedData.sources?.[key];
   $(count).textContent=arr.length;
-  if(s?.ok){$(dot).className='dot good';$(text).textContent=`Live · ${arr.length} item${arr.length===1?'':'s'}`}
-  else{$(dot).className='dot bad';$(text).textContent=s?.message||'Feed unavailable'}
+  if(s?.ok){
+    $(dot).className='dot good';
+    if(key==='westernPower'){
+      const planned=s.plannedCount??arr.filter(x=>wpCategory(x)==='planned').length;
+      const unplanned=s.unplannedCount??arr.filter(x=>wpCategory(x)==='unplanned').length;
+      const unknown=s.unknownCount??arr.filter(x=>wpCategory(x)==='unknown').length;
+      $(text).textContent=`${planned} planned · ${unplanned} unplanned${unknown?` · ${unknown} unknown`:''}`;
+    }else{
+      $(text).textContent=`Live · ${arr.length} item${arr.length===1?'':'s'}`;
+    }
+  }else{
+    $(dot).className='dot bad';$(text).textContent=s?.message||'Feed unavailable';
+  }
 }
 
 function wpCard(i){
+  const category=wpCategory(i);
+  const label=category==='planned'?'PLANNED':category==='unplanned'?'UNPLANNED':'TYPE UNKNOWN';
   const customers=i.customersImpacted!==null&&i.customersImpacted!==undefined?`${Number(i.customersImpacted).toLocaleString('en-AU')} customers`:'Customer count unavailable';
-  const restoration=i.estimatedRestorationTime?`Est. restoration ${fmt(i.estimatedRestorationTime)}`:'Restoration estimate unavailable';
+  const restoration=i.estimatedRestorationTime?`${category==='planned'?'Planned finish':'Est. restoration'} ${fmt(i.estimatedRestorationTime)}`:'End/restoration estimate unavailable';
   const incident=i.incidentRef?`Incident ${esc(i.incidentRef)}`:'Western Power outage';
-  return `<article class="warning wp ${i.planned?'planned':'unplanned'}" style="border-left-color:${i.planned?'#eab308':'#f97316'}">
-    <h3>${esc(i.title||'Western Power outage')}</h3>
+  return `<article class="warning wp ${category}">
+    <div class="wphead"><span class="wpbadge ${category}">${label}</span>${i.outageType?`<span class="wpcode">Code ${esc(i.outageType)}</span>`:''}</div>
+    <h3>${esc(i.affectedArea||i.title||'Western Power outage')}</h3>
     <p>${esc(customers)} · ${esc(restoration)}</p>
-    <div class="meta"><span>${incident}</span><span>${i.outageStartTime?esc(fmt(i.outageStartTime)):i.planned?'Planned':'Current'}</span></div>
+    <div class="meta"><span>${incident}</span><span>${i.outageStartTime?esc(fmt(i.outageStartTime)):category==='planned'?'Upcoming':'Current'}</span></div>
     <a href="${esc(i.link||'https://www.westernpower.com.au/faults-outages/power-outages/')}" target="_blank" rel="noopener">Open official outage map</a>
   </article>`;
 }
@@ -119,13 +140,21 @@ function warningCard(i){
   </article>`;
 }
 
+function sortedWp(items){
+  const rank={unplanned:0,unknown:1,planned:2};
+  return [...items].sort((a,b)=>(rank[wpCategory(a)]??9)-(rank[wpCategory(b)]??9));
+}
+
 function renderWarnings(){
-  let items=[...(feedData.bom||[]),...(feedData.emergency||[]),...(feedData.westernPower||[])];
-  if(activeFilter==='bom')items=feedData.bom||[];
-  if(activeFilter==='ewa')items=feedData.emergency||[];
-  if(activeFilter==='wp')items=feedData.westernPower||[];
+  const bom=feedData.bom||[],ewa=feedData.emergency||[],wp=sortedWp(feedData.westernPower||[]);
+  let items=[...ewa,...wp.filter(x=>wpCategory(x)==='unplanned'),...bom,...wp.filter(x=>wpCategory(x)!=='unplanned')];
+  if(activeFilter==='bom')items=bom;
+  if(activeFilter==='ewa')items=ewa;
+  if(activeFilter==='wp')items=wp;
+  if(activeFilter==='wp-planned')items=wp.filter(x=>wpCategory(x)==='planned');
+  if(activeFilter==='wp-unplanned')items=wp.filter(x=>wpCategory(x)==='unplanned');
   if(!items.length){$('warnings').innerHTML='<div class="empty">No items are currently returned for this filter. Check the feed status above.</div>';return}
-  $('warnings').innerHTML=items.slice(0,100).map(i=>src(i)==='wp'?wpCard(i):warningCard(i)).join('');
+  $('warnings').innerHTML=items.slice(0,150).map(i=>src(i)==='wp'?wpCard(i):warningCard(i)).join('');
 }
 
 function valid(p){return Array.isArray(p)&&p.length>=2&&Number.isFinite(+p[0])&&Number.isFinite(+p[1])}
@@ -154,11 +183,13 @@ function plotOutages(){
   let plotted=0;
   for(const i of feedData.westernPower||[]){
     if(!i.geometry)continue;
-    const color=i.planned?'#eab308':'#f97316';
+    const category=wpCategory(i);
+    const color=category==='planned'?'#eab308':category==='unplanned'?'#c2410c':'#64748b';
     const customers=i.customersImpacted!==null&&i.customersImpacted!==undefined?`${Number(i.customersImpacted).toLocaleString('en-AU')} customers impacted`:'Customer count unavailable';
-    const popup=`<strong>${esc(i.title||'Western Power outage')}</strong><br>${esc(customers)}${i.incidentRef?`<br>Incident: ${esc(i.incidentRef)}`:''}${i.estimatedRestorationTime?`<br>Est. restoration: ${esc(fmt(i.estimatedRestorationTime))}`:''}<br><a href="${esc(i.link)}" target="_blank">Western Power outage map</a>`;
+    const label=category==='planned'?'PLANNED':category==='unplanned'?'UNPLANNED':'TYPE UNKNOWN';
+    const popup=`<strong>${label}: ${esc(i.affectedArea||'Western Power outage')}</strong><br>${esc(customers)}${i.incidentRef?`<br>Incident: ${esc(i.incidentRef)}`:''}${i.outageStartTime?`<br>Start: ${esc(fmt(i.outageStartTime))}`:''}${i.estimatedRestorationTime?`<br>${category==='planned'?'Finish':'Est. restoration'}: ${esc(fmt(i.estimatedRestorationTime))}`:''}<br><a href="${esc(i.link)}" target="_blank">Western Power outage map</a>`;
     try{
-      L.geoJSON(i.geometry,{style:{color,weight:2,fillColor:color,fillOpacity:i.planned?.13:.20}}).bindPopup(popup).addTo(outageLayer);
+      L.geoJSON(i.geometry,{style:{color,weight:category==='unplanned'?3:2,fillColor:color,fillOpacity:category==='planned'?.12:category==='unplanned'?.23:.12}}).bindPopup(popup).addTo(outageLayer);
       plotted++;
     }catch(e){console.warn('Unable to plot Western Power geometry',e)}
   }
@@ -170,7 +201,9 @@ function plot(){
   const warningShapes=plotWarnings();
   const outageShapes=plotOutages();
   const total=(feedData.bom?.length||0)+(feedData.emergency?.length||0)+(feedData.westernPower?.length||0);
-  $('mapStatus').textContent=`${total} live items · ${warningShapes} warning shapes · ${outageShapes} outage areas`;
+  const planned=(feedData.westernPower||[]).filter(x=>wpCategory(x)==='planned').length;
+  const unplanned=(feedData.westernPower||[]).filter(x=>wpCategory(x)==='unplanned').length;
+  $('mapStatus').textContent=`${total} live items · WP ${unplanned} unplanned / ${planned} planned · ${warningShapes} warning shapes`;
 }
 
 async function loadFeeds(){
