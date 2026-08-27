@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#090b0e">
-<meta name="description" content="WAOS — Western Australia Operations System for the Western Power SWIN operational footprint.">
+<meta name="description" content="WAOS — Western Power SWIN operational workbench for outages, warnings, weather, roads, fire and environmental conditions.">
 <title>WAOS — SWIN Operations</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="dashboard.css?v=20260827-1230">
-<link rel="stylesheet" href="v3.css?v=20260827-1230">
-<link rel="stylesheet" href="swin-header.css?v=20260827-1745">
-<link rel="manifest" href="manifest.webmanifest?v=20260827-1320">
+<link rel="stylesheet" href="dashboard.css?v=20260827-1810">
+<link rel="stylesheet" href="v3.css?v=20260827-1810">
+<link rel="stylesheet" href="swin-workbench.css?v=20260827-1810">
+<link rel="manifest" href="manifest.webmanifest?v=20260827-1810">
 <link rel="icon" href="icon-192.svg" type="image/svg+xml">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="WAOS">
@@ -32,13 +32,13 @@
       <div class="swin-hp-stat mr"><span>Main Roads</span><b id="swinHpMr">--</b></div>
       <div class="swin-hp-stat total"><span>Total live items</span><b id="swinHpTotal">--</b></div>
     </div>
-    <div class="swin-hp-note">All operational feeds on this page are scoped to items mapped within, crossing, or clearly referring to the Western Power SWIN footprint. Boundary is indicative for situational awareness.</div>
+    <div class="swin-hp-note">All operational feeds are scoped to items mapped within, crossing, or clearly referring to the Western Power SWIN footprint. Boundary is indicative for situational awareness.</div>
     <span id="mapStatus" class="waos-visually-hidden" aria-live="polite">Loading operational feeds...</span>
   </section>
   <div class="topstats" aria-label="Current dashboard status">
     <div class="stat"><span>Perth time</span><strong id="clock">--:--:--</strong></div>
-    <div class="stat"><span>Weather</span><strong id="topTemp">Loading</strong></div>
-    <div class="stat"><span>Live items</span><strong id="warningCount">--</strong></div>
+    <div class="stat"><span>SWIN weather</span><strong id="topTemp">Loading</strong></div>
+    <div class="stat"><span>Priority</span><strong id="warningCount">--</strong></div>
     <div class="stat"><span>Last refresh</span><strong id="last">--</strong></div>
   </div>
 </header>
@@ -47,7 +47,7 @@
   <section class="mapwrap" aria-label="SWIN operations map">
     <div id="map" class="map"></div>
     <form class="map-search" id="mapSearch" role="search">
-      <input id="mapSearchInput" type="search" autocomplete="street-address" placeholder="Search address, suburb or place in the SWIN" aria-label="Search address, suburb or place in the Western Power SWIN">
+      <input id="mapSearchInput" type="search" autocomplete="street-address" placeholder="Search address or place within the SWIN" aria-label="Search address or place in the Western Power SWIN">
       <button type="submit">Find</button>
     </form>
     <div class="map-search-status" id="mapSearchStatus" role="status"></div>
@@ -78,11 +78,11 @@
     </div>
   </section>
 
-  <aside class="panel sidebar ops-panel" id="rightPanel" aria-label="Operations panel">
+  <aside class="panel sidebar ops-panel" id="rightPanel" aria-label="SWIN operations panel">
     <button class="sidebar-toggle" id="rightToggle" type="button" aria-label="Toggle operations panel" aria-expanded="true"><span class="toggle-arrow">›</span></button>
     <div class="collapsed-label">Operations</div>
     <div class="panel-content">
-      <div class="ops-head"><h2>Operations</h2><button class="btn" id="refresh" type="button">Refresh now</button></div>
+      <div class="ops-head"><h2>SWIN Operations</h2><button class="btn" id="refresh" type="button">Refresh</button></div>
       <section class="ops-section" aria-labelledby="liveIncidentsHeading">
         <div class="heading"><h2 id="liveIncidentsHeading">Live incidents</h2><span id="feedAge" class="notice">--</span></div>
         <div class="filter" aria-label="Filter live incidents">
@@ -90,44 +90,45 @@
         </div>
         <div class="warnings" id="warnings"><div class="empty">Connecting to live operational feeds...</div></div>
       </section>
-      <section class="ops-section"><details class="fold" open><summary>Map layers <span class="foldhint">show / hide</span></summary><div class="foldcontent"><div class="layerbox"><div class="layergrid">
+      <section class="ops-section"><details class="fold"><summary>Map layers <span class="foldhint">display controls</span></summary><div class="foldcontent"><div class="layerbox"><div class="layergrid">
         <label class="layertoggle"><input type="checkbox" data-layer-toggle="bom"><i class="layerdot" style="background:#eab308"></i>BOM warnings</label>
         <label class="layertoggle"><input type="checkbox" data-layer-toggle="ewa"><i class="layerdot" style="background:#dc2626"></i>Emergency WA</label>
         <label class="layertoggle"><input type="checkbox" data-layer-toggle="wpUnplanned"><i class="layerdot" style="background:#f97316"></i>WP unplanned</label>
         <label class="layertoggle"><input type="checkbox" data-layer-toggle="wpPlanned"><i class="layerdot" style="background:#16a34a"></i>WP planned</label>
         <label class="layertoggle"><input type="checkbox" data-layer-toggle="mr"><i class="layerdot" style="background:#2563eb"></i>Main Roads</label>
-      </div><div class="layerpresets" aria-label="Map layer presets"><button type="button" data-layer-preset="all">Everything</button><button type="button" data-layer-preset="warnings">Warnings</button><button type="button" data-layer-preset="power">Power</button><button type="button" data-layer-preset="roads">Roads</button><button type="button" data-layer-preset="none">Clear map</button></div><div class="layerhint">Your layer choices are saved on this device. Hidden feeds continue refreshing in the background.</div></div></div></details></section>
+      </div><div class="layerpresets" aria-label="Map layer presets"><button type="button" data-layer-preset="all">All SWIN</button><button type="button" data-layer-preset="warnings">Warnings</button><button type="button" data-layer-preset="power">Power</button><button type="button" data-layer-preset="roads">Roads</button><button type="button" data-layer-preset="none">Clear map</button></div><div class="layerhint">All feeds remain SWIN-scoped. Layer controls only change what is visible on the map.</div></div></div></details></section>
       <section class="ops-section"><details class="fold" open><summary>Perth weather <span class="foldhint">now + forecast</span></summary><div class="foldcontent"><div class="weather"><div class="weatherMain"><div><div class="temp" id="temp">--°</div><div class="condition" id="condition">Connecting...</div></div></div><div class="grid"><div><span>Feels like</span><strong id="feels">--°</strong></div><div><span>Wind</span><strong id="wind">-- km/h</strong></div><div><span>Gusts</span><strong id="gusts">-- km/h</strong></div><div><span>Rain</span><strong id="rain">-- mm</strong></div></div></div><div style="height:8px"></div><details class="fold"><summary>7-day forecast <span class="foldhint">daily outlook</span></summary><div class="foldcontent"><div class="forecast" id="forecast"><div class="day"><strong>Loading</strong><span class="desc">Forecast...</span><span>--</span></div></div></div></details></div></details></section>
       <section class="ops-section"><details class="fold"><summary>Selected place <span class="foldhint">search / locate</span></summary><div class="foldcontent"><div class="selected"><strong id="selectedTitle">Search or use My location</strong><p id="selectedWeather">Weather for a searched address or your location will appear here.</p></div></div></details></section>
-      <section class="ops-section"><details class="fold"><summary>System health <span class="foldhint">live feeds</span></summary><div class="foldcontent"><div class="feedlist">
+      <section class="ops-section"><details class="fold"><summary>System health <span class="foldhint">feed status</span></summary><div class="foldcontent"><div class="feedlist">
         <div class="feed"><i id="weatherDot" class="dot warn"></i><div><strong>Weather API</strong><span id="weatherFeed">Connecting...</span></div><b class="count">LIVE</b></div>
-        <div class="feed"><i id="bomDot" class="dot warn"></i><div><strong>BOM WA warnings</strong><span id="bomFeed">Connecting...</span></div><b class="count" id="bomCount">--</b></div>
+        <div class="feed"><i id="bomDot" class="dot warn"></i><div><strong>BOM warnings</strong><span id="bomFeed">Connecting...</span></div><b class="count" id="bomCount">--</b></div>
         <div class="feed"><i id="ewaDot" class="dot warn"></i><div><strong>Emergency WA</strong><span id="ewaFeed">Connecting...</span></div><b class="count" id="ewaCount">--</b></div>
         <div class="feed"><i id="wpDot" class="dot warn"></i><div><strong>Western Power outages</strong><span id="wpFeed">Connecting...</span></div><b class="count" id="wpCount">--</b></div>
-        <div class="feed"><i id="mrDot" class="dot warn"></i><div><strong>Main Roads Travel Map</strong><span id="mrFeed">Connecting...</span></div><b class="count" id="mrCount">--</b></div>
+        <div class="feed"><i id="mrDot" class="dot warn"></i><div><strong>Main Roads</strong><span id="mrFeed">Connecting...</span></div><b class="count" id="mrCount">--</b></div>
       </div></div></details></section>
-      <section class="ops-section"><details class="fold"><summary>Using the map <span class="foldhint">help</span></summary><div class="foldcontent"><p class="notice">Search within the Western Power SWIN, use My location, or click an incident card to jump to it on the map. Use the layer controls to simplify the map for the task you are doing.</p></div></details><details class="fold"><summary>Official sources <span class="foldhint">verify information</span></summary><div class="foldcontent"><div class="links">
+      <section class="ops-section"><details class="fold"><summary>Sources & verification <span class="foldhint">official links</span></summary><div class="foldcontent"><div class="links">
         <a class="link yellow" href="https://www.westernpower.com.au/faults-outages/power-outages/" target="_blank" rel="noopener"><strong>Western Power outages</strong><span>Official outage map and outage information</span></a>
         <a class="link red" href="https://www.emergency.wa.gov.au/" target="_blank" rel="noopener"><strong>Emergency WA</strong><span>Official emergency warnings and incidents</span></a>
         <a class="link" href="https://www.bom.gov.au/wa/warnings/" target="_blank" rel="noopener"><strong>BOM WA warnings</strong><span>Official Bureau of Meteorology warnings</span></a>
-        <a class="link" href="https://travelmap.mainroads.wa.gov.au/Home/Map" target="_blank" rel="noopener"><strong>Main Roads Travel Map</strong><span>Official WA road incidents, closures and travel information</span></a>
-      </div><p class="notice" style="margin-top:8px">Always verify safety-critical information with the official source. Emergency WA attribution: © State of Western Australia acting through the Department of Fire and Emergency Services. Main Roads information is sourced from the public Main Roads WA Travel Map ArcGIS service.</p></div></details></section>
+        <a class="link" href="https://travelmap.mainroads.wa.gov.au/Home/Map" target="_blank" rel="noopener"><strong>Main Roads Travel Map</strong><span>Official road incidents, closures and travel information</span></a>
+      </div><p class="notice" style="margin-top:8px">WAOS is a situational-awareness workbench. Always verify safety-critical information with the official source.</p></div></details></section>
     </div>
   </aside>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="dashboard.js?v=20260827-1230"></script>
-<script src="dashboard-extras.js?v=20260827-1230"></script>
-<script src="weather-overlays.js?v=20260827-1230"></script>
-<script src="v3-intelligence.js?v=20260827-1230"></script>
-<script src="v3-areas.js?v=20260827-1230"></script>
-<script src="v3-environment.js?v=20260827-1230"></script>
-<script src="v3-map-areas.js?v=20260827-1305"></script>
-<script data-waos-swin src="swin-focus.js?v=20260827-1745"></script>
-<script data-waos-mr-cleanup src="main-roads-cleanup.js?v=20260827-1745"></script>
-<script src="v3-refinements.js?v=20260827-1745"></script>
-<script src="wp-source-clarity.js?v=20260827-1610"></script>
-<script src="swin-header-picture.js?v=20260827-1745"></script>
+<script src="dashboard.js?v=20260827-1810"></script>
+<script src="dashboard-extras.js?v=20260827-1810"></script>
+<script src="weather-overlays.js?v=20260827-1810"></script>
+<script src="v3-intelligence.js?v=20260827-1810"></script>
+<script src="v3-areas.js?v=20260827-1810"></script>
+<script src="v3-environment.js?v=20260827-1810"></script>
+<script src="v3-map-areas.js?v=20260827-1810"></script>
+<script data-waos-swin src="swin-focus.js?v=20260827-1810"></script>
+<script data-waos-mr-cleanup src="main-roads-cleanup.js?v=20260827-1810"></script>
+<script src="v3-refinements.js?v=20260827-1810"></script>
+<script src="wp-source-clarity.js?v=20260827-1810"></script>
+<script src="swin-header-picture.js?v=20260827-1810"></script>
+<script src="swin-workbench.js?v=20260827-1810"></script>
 </body>
 </html>
