@@ -36,6 +36,7 @@ jobs:
           node --check swin-focus.js
           node --check swin-header-picture.js
           node --check swin-workbench.js
+          node --check swin-zones.js
           node --check main-roads-cleanup.js
           node --check wp-source-clarity.js
           node --check sw.js
