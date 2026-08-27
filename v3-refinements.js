@@ -12,4 +12,5 @@ setTimeout(()=>{V.refresh?.();refreshFireFromLoadedFeed()},4500);
 setTimeout(()=>{V.refresh?.();refreshFireFromLoadedFeed()},10000);
 window.addEventListener('offline',()=>V.toast?.('You are offline — showing cached dashboard shell and last loaded data',true));
 window.addEventListener('online',()=>{V.toast?.('Connection restored');document.getElementById('refresh')?.click()});
+if(!document.querySelector('script[data-waos-swin]')){const s=document.createElement('script');s.src='swin-focus.js?v=20260827-1635';s.dataset.waosSwin='1';document.body.appendChild(s)}
 })();
