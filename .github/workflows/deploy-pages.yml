@@ -32,6 +32,8 @@ jobs:
           node --check v3-areas.js
           node --check v3-environment.js
           node --check sw.js
+          node --check worker/src/history.js
+          node --check worker/src/index-v9.js
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload site artifact
