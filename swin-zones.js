@@ -11,7 +11,7 @@ const ZONES={
   eastcountry:{label:'East Country',bounds:[[-33.30,116.15],[-30.15,122.25]]}
 };
 
-let zoneLayer=null;
+let zoneLayer=null, rebuilding=false;
 const q=s=>document.querySelector(s);
 
 function ensurePane(){
@@ -44,8 +44,6 @@ function showZone(id){
   markActive(id in ZONES?id:'swin');
 
   if(z.swin){
-    const boundary=(window.WAOSSwinBoundaryLayer||null);
-    if(boundary?.getBounds){map.fitBounds(boundary.getBounds(),{padding:[24,24],maxZoom:7,animate:true});return}
     map.fitBounds([[-35.20,114.00],[-27.40,122.05]],{padding:[24,24],maxZoom:7,animate:true});
     return;
   }
@@ -68,16 +66,25 @@ function showZone(id){
 function build(){
   const box=q('.mapbuttons');
   if(!box||typeof map==='undefined'||!map)return false;
+  if(box.querySelectorAll('[data-waos-zone]').length===Object.keys(ZONES).length)return true;
+  rebuilding=true;
   box.innerHTML=Object.entries(ZONES).map(([id,z])=>`<button type="button" data-waos-zone="${id}" aria-pressed="${id==='swin'?'true':'false'}">${z.label}</button>`).join('');
   box.setAttribute('aria-label','SWIN operational work zones');
   box.querySelectorAll('[data-waos-zone]').forEach(b=>b.addEventListener('click',()=>showZone(b.dataset.waosZone)));
   markActive('swin');
+  rebuilding=false;
   return true;
 }
 
 function boot(){
   if(!build()){setTimeout(boot,150);return}
-  // The SWIN core can rebuild these buttons during startup. Reassert the work-zone set once startup settles.
+  const box=q('.mapbuttons');
+  if(box){
+    new MutationObserver(()=>{
+      if(rebuilding)return;
+      if(!box.querySelector('[data-waos-zone]'))setTimeout(build,0);
+    }).observe(box,{childList:true});
+  }
   setTimeout(build,800);
   setTimeout(build,2200);
   console.info('WAOS SWIN operational zones loaded');
