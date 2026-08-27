@@ -1,6 +1,6 @@
-const CACHE='wa-ops-v3-1635';
+const CACHE='wa-ops-v3-1705';
 const STATE='wa-ops-v3-state';
-const STATIC=['./','./dashboard.html','./dashboard.css','./dashboard.js','./dashboard-extras.js','./dashboard-extras-core.js','./v3.css','./v3-intelligence.js','./v3-areas.js','./v3-environment.js','./v3-map-areas.js','./v3-refinements.js','./swin-focus.js','./weather-overlays.js','./wp-source-clarity.js','./manifest.webmanifest','./icon-192.svg','./icon-512.svg'];
+const STATIC=['./','./dashboard.html','./dashboard.css','./dashboard.js','./dashboard-extras.js','./dashboard-extras-core.js','./v3.css','./v3-intelligence.js','./v3-areas.js','./v3-environment.js','./v3-map-areas.js','./v3-refinements.js','./swin-focus.js','./main-roads-cleanup.js','./weather-overlays.js','./wp-source-clarity.js','./manifest.webmanifest','./icon-192.svg','./icon-512.svg'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(STATIC)).catch(()=>{}).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('wa-ops-v3-')&&k!==CACHE&&k!==STATE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==location.origin)return;e.respondWith((async()=>{try{const r=await fetch(e.request);if(r.ok){const c=await caches.open(CACHE);c.put(e.request,r.clone())}return r}catch{const c=await caches.open(CACHE);return(await c.match(e.request))||(e.request.mode==='navigate'?await c.match('./dashboard.html'):Response.error())}})())});
