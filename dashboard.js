@@ -1,10 +1,12 @@
 const PERTH={lat:-31.9523,lon:115.8613};
 const WORKER='https://wa-operations-dashboard-new.haidenp10.workers.dev';
-let map,selectedMarker,warningLayer,outageLayer;
-let feedData={bom:[],emergency:[],westernPower:[],sources:{}};
+let map,selectedMarker,warningLayer,outageLayer,roadLayer;
+let feedData={bom:[],emergency:[],westernPower:[],mainRoads:[],sources:{}};
 let activeFilter='all';
+const layerIndex=new Map();
 const $=id=>document.getElementById(id);
 
+const COLORS={bom:'#eab308',ewa:'#dc2626',wpPlanned:'#16a34a',wpUnplanned:'#f97316',wpUnknown:'#64748b',mr:'#2563eb'};
 const codes={0:'Clear',1:'Mostly clear',2:'Partly cloudy',3:'Cloudy',45:'Fog',48:'Fog',51:'Light drizzle',53:'Drizzle',55:'Heavy drizzle',61:'Light rain',63:'Rain',65:'Heavy rain',80:'Rain showers',81:'Rain showers',82:'Heavy showers',95:'Thunderstorm',96:'Thunderstorm with hail',99:'Severe thunderstorm'};
 
 function wx(c){return codes[c]||'Conditions'}
@@ -39,18 +41,12 @@ async function loadPerth(){
       const day=i===0?'Today':new Intl.DateTimeFormat('en-AU',{weekday:'short'}).format(new Date(x+'T12:00:00+08:00'));
       return `<div class="day"><strong>${day}</strong><span class="desc">${esc(wx(d.daily.weather_code[i]))} · rain ${d.daily.precipitation_sum[i]} mm</span><strong>${Math.round(d.daily.temperature_2m_max[i])}° / ${Math.round(d.daily.temperature_2m_min[i])}°</strong></div>`;
     }).join('');
-  }catch(e){
-    console.error(e);$('weatherDot').className='dot bad';$('weatherFeed').textContent='Unavailable';$('condition').textContent='Weather unavailable';$('topTemp').textContent='ERR';
-  }
+  }catch(e){console.error(e);$('weatherDot').className='dot bad';$('weatherFeed').textContent='Unavailable';$('condition').textContent='Weather unavailable';$('topTemp').textContent='ERR'}
 }
 
 async function pointWeather(lat,lon,label){
   $('selectedTitle').textContent=label;$('selectedWeather').textContent='Loading...';
-  try{
-    const d=await getWeather(lat,lon,1),c=d.current;
-    $('selectedWeather').textContent=`${Math.round(c.temperature_2m)}°C, ${wx(c.weather_code)}. Feels ${Math.round(c.apparent_temperature)}°C. Wind ${Math.round(c.wind_speed_10m)} km/h, gusts ${Math.round(c.wind_gusts_10m)} km/h. Rain ${Number(c.precipitation).toFixed(1)} mm.`;
-    return c;
-  }catch{$('selectedWeather').textContent='Unable to load weather for this point.'}
+  try{const d=await getWeather(lat,lon,1),c=d.current;$('selectedWeather').textContent=`${Math.round(c.temperature_2m)}°C, ${wx(c.weather_code)}. Feels ${Math.round(c.apparent_temperature)}°C. Wind ${Math.round(c.wind_speed_10m)} km/h, gusts ${Math.round(c.wind_gusts_10m)} km/h. Rain ${Number(c.precipitation).toFixed(1)} mm.`;return c}catch{$('selectedWeather').textContent='Unable to load weather for this point.'}
 }
 
 function initMap(){
@@ -58,193 +54,102 @@ function initMap(){
   map=L.map('map').setView([PERTH.lat,PERTH.lon],9);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);
   L.marker([PERTH.lat,PERTH.lon]).addTo(map).bindPopup('<strong>Perth</strong>');
-  warningLayer=L.layerGroup().addTo(map);
-  outageLayer=L.layerGroup().addTo(map);
-  map.on('click',async e=>{
-    if(selectedMarker)selectedMarker.remove();
-    selectedMarker=L.marker([e.latlng.lat,e.latlng.lng]).addTo(map);
-    const c=await pointWeather(e.latlng.lat,e.latlng.lng,`${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`);
-    if(c)selectedMarker.bindPopup(`<strong>Selected point</strong><br>${Math.round(c.temperature_2m)}°C · ${esc(wx(c.weather_code))}`).openPopup();
-  });
-  document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{
-    if(b.dataset.view==='perth')map.setView([PERTH.lat,PERTH.lon],11);
-    if(b.dataset.view==='metro')map.setView([PERTH.lat,PERTH.lon],9);
-    if(b.dataset.view==='wa')map.setView([-26.3,121.2],5);
-  });
-  $('locate').onclick=()=>navigator.geolocation?.getCurrentPosition(async p=>{
-    const lat=p.coords.latitude,lon=p.coords.longitude;
-    map.setView([lat,lon],13);
-    if(selectedMarker)selectedMarker.remove();
-    selectedMarker=L.marker([lat,lon]).addTo(map).bindPopup('Your location').openPopup();
-    await pointWeather(lat,lon,'Your location');
-  },()=>{$('mapStatus').textContent='Location permission unavailable'});
+  warningLayer=L.layerGroup().addTo(map);outageLayer=L.layerGroup().addTo(map);roadLayer=L.layerGroup().addTo(map);
+  map.on('click',async e=>{if(selectedMarker)selectedMarker.remove();selectedMarker=L.marker([e.latlng.lat,e.latlng.lng]).addTo(map);const c=await pointWeather(e.latlng.lat,e.latlng.lng,`${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`);if(c)selectedMarker.bindPopup(`<strong>Selected point</strong><br>${Math.round(c.temperature_2m)}°C · ${esc(wx(c.weather_code))}`).openPopup()});
+  document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{if(b.dataset.view==='perth')map.setView([PERTH.lat,PERTH.lon],11);if(b.dataset.view==='metro')map.setView([PERTH.lat,PERTH.lon],9);if(b.dataset.view==='wa')map.setView([-26.3,121.2],5)});
+  $('locate').onclick=()=>navigator.geolocation?.getCurrentPosition(async p=>{const lat=p.coords.latitude,lon=p.coords.longitude;map.setView([lat,lon],13);if(selectedMarker)selectedMarker.remove();selectedMarker=L.marker([lat,lon]).addTo(map).bindPopup('Your location').openPopup();await pointWeather(lat,lon,'Your location')},()=>{$('mapStatus').textContent='Location permission unavailable'});
 }
 
-function src(item){
-  const s=String(item.source||'').toLowerCase();
-  if(s.includes('western power'))return 'wp';
-  if(s.includes('emergency'))return 'ewa';
-  return 'bom';
-}
-
-function wpCategory(i){
-  if(i?.outageCategory)return i.outageCategory;
-  if(i?.planned===true)return 'planned';
-  if(i?.planned===false)return 'unplanned';
-  return 'unknown';
-}
+function src(item){const s=String(item.source||'').toLowerCase();if(s.includes('western power'))return 'wp';if(s.includes('emergency'))return 'ewa';if(s.includes('main roads'))return 'mr';return 'bom'}
+function itemKey(i){return `${src(i)}:${String(i.id||i.rawId||i.title||'item')}`}
+function wpCategory(i){if(i?.outageCategory)return i.outageCategory;if(i?.planned===true)return 'planned';if(i?.planned===false)return 'unplanned';return 'unknown'}
+function hasMapData(i){if(i?.geometry)return true;if(Array.isArray(i?.point)&&i.point.length>=2)return true;if(Array.isArray(i?.polygons)&&i.polygons.length)return true;if(Array.isArray(i?.polygon)&&i.polygon.length)return true;return false}
 
 function sourceStatus(key,dot,text,count){
-  const arrays={bom:feedData.bom,emergency:feedData.emergency,westernPower:feedData.westernPower};
-  const arr=arrays[key]||[];
-  const s=feedData.sources?.[key];
-  $(count).textContent=arr.length;
-  if(s?.ok){
-    $(dot).className='dot good';
-    if(key==='westernPower'){
-      const planned=s.plannedCount??arr.filter(x=>wpCategory(x)==='planned').length;
-      const unplanned=s.unplannedCount??arr.filter(x=>wpCategory(x)==='unplanned').length;
-      const unknown=s.unknownCount??arr.filter(x=>wpCategory(x)==='unknown').length;
-      $(text).textContent=`${planned} planned · ${unplanned} unplanned${unknown?` · ${unknown} unknown`:''}`;
-    }else{
-      $(text).textContent=`Live · ${arr.length} item${arr.length===1?'':'s'}`;
-    }
-  }else{
-    $(dot).className='dot bad';$(text).textContent=s?.message||'Feed unavailable';
-  }
+  const arrays={bom:feedData.bom,emergency:feedData.emergency,westernPower:feedData.westernPower,mainRoads:feedData.mainRoads};
+  const arr=arrays[key]||[],s=feedData.sources?.[key];$(count).textContent=arr.length;
+  if(s?.ok){$(dot).className='dot good';if(key==='westernPower'){const planned=s.plannedCount??arr.filter(x=>wpCategory(x)==='planned').length;const unplanned=s.unplannedCount??arr.filter(x=>wpCategory(x)==='unplanned').length;$(text).textContent=`${planned} planned · ${unplanned} unplanned`}else if(key==='mainRoads'){$(text).textContent=`Live · ${arr.length} travel item${arr.length===1?'':'s'}${s.failedLayers?` · ${s.failedLayers} layer${s.failedLayers===1?'':'s'} unavailable`:''}`}else{$(text).textContent=`Live · ${arr.length} item${arr.length===1?'':'s'}`}}else{$(dot).className='dot bad';$(text).textContent=s?.message||'Feed unavailable'}
 }
 
 function wpCard(i){
-  const category=wpCategory(i);
-  const label=category==='planned'?'PLANNED':category==='unplanned'?'UNPLANNED':'TYPE UNKNOWN';
+  const category=wpCategory(i),label=category==='planned'?'PLANNED':category==='unplanned'?'UNPLANNED':'OUTAGE';
   const customers=i.customersImpacted!==null&&i.customersImpacted!==undefined?`${Number(i.customersImpacted).toLocaleString('en-AU')} customers`:'Customer count unavailable';
   const restoration=i.estimatedRestorationTime?`${category==='planned'?'Planned finish':'Est. restoration'} ${fmt(i.estimatedRestorationTime)}`:'End/restoration estimate unavailable';
   const incident=i.incidentRef?`Incident ${esc(i.incidentRef)}`:'Western Power outage';
-  return `<article class="warning wp ${category}">
-    <div class="wphead"><span class="wpbadge ${category}">${label}</span>${i.outageType?`<span class="wpcode">Code ${esc(i.outageType)}</span>`:''}</div>
-    <h3>${esc(i.affectedArea||i.title||'Western Power outage')}</h3>
-    <p>${esc(customers)} · ${esc(restoration)}</p>
-    <div class="meta"><span>${incident}</span><span>${i.outageStartTime?esc(fmt(i.outageStartTime)):category==='planned'?'Upcoming':'Current'}</span></div>
-    <a href="${esc(i.link||'https://www.westernpower.com.au/faults-outages/power-outages/')}" target="_blank" rel="noopener">Open official outage map</a>
-  </article>`;
+  return `<article class="warning wp ${category} ${hasMapData(i)?'map-focusable':''}" data-map-key="${esc(itemKey(i))}"><div class="wphead"><span class="wpbadge ${category}">${label}</span>${i.outageType?`<span class="wpcode">Code ${esc(i.outageType)}</span>`:''}</div><h3>${esc(i.affectedArea||i.title||'Western Power outage')}</h3><p>${esc(customers)} · ${esc(restoration)}</p><div class="meta"><span>${incident}</span><span>${i.outageStartTime?esc(fmt(i.outageStartTime)):category==='planned'?'Upcoming':'Current'}</span></div><a href="${esc(i.link||'https://www.westernpower.com.au/faults-outages/power-outages/')}" target="_blank" rel="noopener">Open official outage map</a></article>`;
 }
 
 function warningCard(i){
-  const type=src(i);
-  return `<article class="warning ${type==='ewa'?'ewa':''}">
-    <h3>${esc(i.title)}</h3>
-    ${i.area?`<p><strong>${esc(i.area)}</strong></p>`:''}
-    ${i.description?`<p>${esc(i.description).slice(0,260)}${i.description.length>260?'…':''}</p>`:''}
-    <div class="meta"><span>${type==='ewa'?'Emergency WA':'BOM'}${i.severity?` · ${esc(i.severity)}`:''}</span><span>${esc(fmt(i.published))}</span></div>
-    ${i.link?`<a href="${esc(i.link)}" target="_blank" rel="noopener">Open official item</a>`:''}
-  </article>`;
+  const type=src(i),label=type==='ewa'?'Emergency WA':'BOM';
+  return `<article class="warning ${type==='ewa'?'ewa':''} ${hasMapData(i)?'map-focusable':''}" data-map-key="${esc(itemKey(i))}"><h3>${esc(i.title)}</h3>${i.area?`<p><strong>${esc(i.area)}</strong></p>`:''}${i.description?`<p>${esc(i.description).slice(0,260)}${i.description.length>260?'…':''}</p>`:''}<div class="meta"><span>${label}${i.severity?` · ${esc(i.severity)}`:''}</span><span>${esc(fmt(i.published))}</span></div>${i.link?`<a href="${esc(i.link)}" target="_blank" rel="noopener">Open official item</a>`:''}</article>`;
 }
 
-function sortedWp(items){
-  const rank={unplanned:0,unknown:1,planned:2};
-  return [...items].sort((a,b)=>(rank[wpCategory(a)]??9)-(rank[wpCategory(b)]??9));
+function mrCard(i){
+  const place=[i.road,i.suburb].filter(Boolean).join(', ')||i.location||'Location supplied on map';
+  return `<article class="warning mr ${hasMapData(i)?'map-focusable':''}" data-map-key="${esc(itemKey(i))}"><div class="mrhead"><span class="mrbadge">${esc(i.categoryLabel||'Main Roads')}</span></div><h3>${esc(i.title||'Main Roads travel item')}</h3><p><strong>${esc(place)}</strong></p>${i.trafficImpact?`<p>${esc(i.trafficImpact).slice(0,260)}${i.trafficImpact.length>260?'…':''}</p>`:''}<div class="meta"><span>Main Roads WA${i.region?` · ${esc(i.region)}`:''}</span><span>${esc(fmt(i.updatedAt||i.startTime))}</span></div><a href="${esc(i.link||'https://travelmap.mainroads.wa.gov.au/Home/Map')}" target="_blank" rel="noopener">Open Main Roads Travel Map</a></article>`;
 }
 
+function sortedWp(items){const rank={unplanned:0,unknown:1,planned:2};return [...items].sort((a,b)=>(rank[wpCategory(a)]??9)-(rank[wpCategory(b)]??9))}
 function renderWarnings(){
-  const bom=feedData.bom||[],ewa=feedData.emergency||[],wp=sortedWp(feedData.westernPower||[]);
-  let items=[...ewa,...wp.filter(x=>wpCategory(x)==='unplanned'),...bom,...wp.filter(x=>wpCategory(x)!=='unplanned')];
-  if(activeFilter==='bom')items=bom;
-  if(activeFilter==='ewa')items=ewa;
-  if(activeFilter==='wp')items=wp;
-  if(activeFilter==='wp-planned')items=wp.filter(x=>wpCategory(x)==='planned');
-  if(activeFilter==='wp-unplanned')items=wp.filter(x=>wpCategory(x)==='unplanned');
+  const bom=feedData.bom||[],ewa=feedData.emergency||[],wp=sortedWp(feedData.westernPower||[]),mr=feedData.mainRoads||[];
+  let items=[...ewa,...wp.filter(x=>wpCategory(x)==='unplanned'),...mr,...bom,...wp.filter(x=>wpCategory(x)!=='unplanned')];
+  if(activeFilter==='bom')items=bom;if(activeFilter==='ewa')items=ewa;if(activeFilter==='wp')items=wp;if(activeFilter==='wp-planned')items=wp.filter(x=>wpCategory(x)==='planned');if(activeFilter==='wp-unplanned')items=wp.filter(x=>wpCategory(x)==='unplanned');if(activeFilter==='mr')items=mr;
   if(!items.length){$('warnings').innerHTML='<div class="empty">No items are currently returned for this filter. Check the feed status above.</div>';return}
-  $('warnings').innerHTML=items.slice(0,150).map(i=>src(i)==='wp'?wpCard(i):warningCard(i)).join('');
+  $('warnings').innerHTML=items.slice(0,180).map(i=>{const type=src(i);return type==='wp'?wpCard(i):type==='mr'?mrCard(i):warningCard(i)}).join('');
 }
 
 function valid(p){return Array.isArray(p)&&p.length>=2&&Number.isFinite(+p[0])&&Number.isFinite(+p[1])}
+function registerMapItem(item,layer,content){layerIndex.set(itemKey(item),{layer,content})}
 
 function plotWarnings(){
-  warningLayer.clearLayers();
-  let plotted=0;
+  warningLayer.clearLayers();let plotted=0;
   for(const i of [...feedData.bom,...feedData.emergency]){
-    const ewa=src(i)==='ewa',color=ewa?'#d93642':'#1877b8';
+    const ewa=src(i)==='ewa',color=ewa?COLORS.ewa:COLORS.bom,parts=[];
     const popup=`<strong>${esc(i.title)}</strong><br>${ewa?'Emergency WA':'BOM'}${i.area?`<br>${esc(i.area)}`:''}${i.link?`<br><a href="${esc(i.link)}" target="_blank">Official source</a>`:''}`;
-    if(valid(i.point)){
-      L.circleMarker([+i.point[0],+i.point[1]],{radius:8,color:'#fff',weight:2,fillColor:color,fillOpacity:1}).bindPopup(popup).addTo(warningLayer);
-      plotted++;
-    }
+    if(valid(i.point)){const l=L.circleMarker([+i.point[0],+i.point[1]],{radius:8,color:'#fff',weight:2,fillColor:color,fillOpacity:1}).bindPopup(popup).addTo(warningLayer);parts.push(l);plotted++}
     const polygons=Array.isArray(i.polygons)&&i.polygons.length?i.polygons:(Array.isArray(i.polygon)?[i.polygon]:[]);
-    for(const polygon of polygons){
-      const pts=Array.isArray(polygon)?polygon.filter(valid).map(p=>[+p[0],+p[1]]):[];
-      if(pts.length>=3){L.polygon(pts,{color,weight:2,fillColor:color,fillOpacity:.16}).bindPopup(popup).addTo(warningLayer);plotted++}
-    }
+    for(const polygon of polygons){const pts=Array.isArray(polygon)?polygon.filter(valid).map(p=>[+p[0],+p[1]]):[];if(pts.length>=3){const l=L.polygon(pts,{color,weight:2,fillColor:color,fillOpacity:.18}).bindPopup(popup).addTo(warningLayer);parts.push(l);plotted++}}
+    if(parts.length)registerMapItem(i,L.featureGroup(parts),popup);
   }
   return plotted;
 }
 
 function plotOutages(){
-  outageLayer.clearLayers();
-  let plotted=0;
-  for(const i of feedData.westernPower||[]){
-    if(!i.geometry)continue;
-    const category=wpCategory(i);
-    const color=category==='planned'?'#0f9d8a':category==='unplanned'?'#dc2626':'#64748b';
-    const customers=i.customersImpacted!==null&&i.customersImpacted!==undefined?`${Number(i.customersImpacted).toLocaleString('en-AU')} customers impacted`:'Customer count unavailable';
-    const label=category==='planned'?'PLANNED':category==='unplanned'?'UNPLANNED':'TYPE UNKNOWN';
-    const popup=`<strong>${label}: ${esc(i.affectedArea||'Western Power outage')}</strong><br>${esc(customers)}${i.incidentRef?`<br>Incident: ${esc(i.incidentRef)}`:''}${i.outageStartTime?`<br>Start: ${esc(fmt(i.outageStartTime))}`:''}${i.estimatedRestorationTime?`<br>${category==='planned'?'Finish':'Est. restoration'}: ${esc(fmt(i.estimatedRestorationTime))}`:''}<br><a href="${esc(i.link)}" target="_blank">Western Power outage map</a>`;
-    try{
-      L.geoJSON(i.geometry,{style:{color,weight:category==='unplanned'?3:2,fillColor:color,fillOpacity:category==='planned'?.14:category==='unplanned'?.26:.12}}).bindPopup(popup).addTo(outageLayer);
-      plotted++;
-    }catch(e){console.warn('Unable to plot Western Power geometry',e)}
-  }
+  outageLayer.clearLayers();let plotted=0;
+  for(const i of feedData.westernPower||[]){if(!i.geometry)continue;const category=wpCategory(i);const color=category==='planned'?COLORS.wpPlanned:category==='unplanned'?COLORS.wpUnplanned:COLORS.wpUnknown;const customers=i.customersImpacted!==null&&i.customersImpacted!==undefined?`${Number(i.customersImpacted).toLocaleString('en-AU')} customers impacted`:'Customer count unavailable';const label=category==='planned'?'PLANNED':category==='unplanned'?'UNPLANNED':'OUTAGE';const popup=`<strong>${label}: ${esc(i.affectedArea||'Western Power outage')}</strong><br>${esc(customers)}${i.incidentRef?`<br>Incident: ${esc(i.incidentRef)}`:''}${i.outageStartTime?`<br>Start: ${esc(fmt(i.outageStartTime))}`:''}${i.estimatedRestorationTime?`<br>${category==='planned'?'Finish':'Est. restoration'}: ${esc(fmt(i.estimatedRestorationTime))}`:''}<br><a href="${esc(i.link)}" target="_blank">Western Power outage map</a>`;try{const l=L.geoJSON(i.geometry,{style:{color,weight:category==='unplanned'?3:2,fillColor:color,fillOpacity:category==='planned'?.16:category==='unplanned'?.27:.12}}).bindPopup(popup).addTo(outageLayer);registerMapItem(i,l,popup);plotted++}catch(e){console.warn('Unable to plot Western Power geometry',e)}}
   return plotted;
 }
 
+function plotMainRoads(){
+  roadLayer.clearLayers();let plotted=0;
+  for(const i of feedData.mainRoads||[]){if(!i.geometry)continue;const place=[i.road,i.suburb].filter(Boolean).join(', ')||i.location||'';const popup=`<strong>${esc(i.title||i.categoryLabel||'Main Roads')}</strong>${place?`<br>${esc(place)}`:''}${i.trafficImpact?`<br>${esc(i.trafficImpact)}`:''}${i.updatedAt?`<br>Updated: ${esc(fmt(i.updatedAt))}`:''}<br><a href="${esc(i.link||'https://travelmap.mainroads.wa.gov.au/Home/Map')}" target="_blank">Main Roads Travel Map</a>`;try{const l=L.geoJSON(i.geometry,{style:{color:COLORS.mr,weight:3,fillColor:COLORS.mr,fillOpacity:.18,dashArray:i.category==='detour'?'6 5':undefined},pointToLayer:(_,latlng)=>L.circleMarker(latlng,{radius:7,color:'#fff',weight:2,fillColor:COLORS.mr,fillOpacity:1})}).bindPopup(popup).addTo(roadLayer);registerMapItem(i,l,popup);plotted++}catch(e){console.warn('Unable to plot Main Roads geometry',e)}}
+  return plotted;
+}
+
+function focusMapItem(key){
+  const entry=layerIndex.get(key);if(!entry||!map)return;
+  const mapWrap=document.querySelector('.mapwrap');if(window.innerWidth<=1100&&mapWrap)mapWrap.scrollIntoView({behavior:'smooth',block:'start'});
+  let center=null;
+  try{if(typeof entry.layer.getBounds==='function'){const b=entry.layer.getBounds();if(b?.isValid?.()){map.fitBounds(b,{padding:[45,45],maxZoom:14,animate:true});center=b.getCenter()}}}catch{}
+  if(!center){try{const ll=entry.layer.getLatLng?.();if(ll){center=ll;map.setView(ll,14,{animate:true})}}catch{}}
+  if(center)setTimeout(()=>L.popup({maxWidth:340}).setLatLng(center).setContent(entry.content).openOn(map),320);
+}
+
 function plot(){
-  if(!warningLayer||!outageLayer)return;
-  const warningShapes=plotWarnings();
-  const outageShapes=plotOutages();
-  const total=(feedData.bom?.length||0)+(feedData.emergency?.length||0)+(feedData.westernPower?.length||0);
-  const planned=(feedData.westernPower||[]).filter(x=>wpCategory(x)==='planned').length;
-  const unplanned=(feedData.westernPower||[]).filter(x=>wpCategory(x)==='unplanned').length;
-  $('mapStatus').textContent=`${total} live items · WP ${unplanned} unplanned / ${planned} planned · ${warningShapes} warning shapes`;
+  if(!warningLayer||!outageLayer||!roadLayer)return;layerIndex.clear();const warningShapes=plotWarnings(),outageShapes=plotOutages(),roadShapes=plotMainRoads();const total=(feedData.bom?.length||0)+(feedData.emergency?.length||0)+(feedData.westernPower?.length||0)+(feedData.mainRoads?.length||0);const planned=(feedData.westernPower||[]).filter(x=>wpCategory(x)==='planned').length;const unplanned=(feedData.westernPower||[]).filter(x=>wpCategory(x)==='unplanned').length;$('mapStatus').textContent=`${total} live items · WP ${unplanned} unplanned / ${planned} planned · ${roadShapes} Main Roads items`;
 }
 
 async function loadFeeds(){
-  ['bomDot','ewaDot','wpDot'].forEach(id=>$(id).className='dot warn');
-  $('bomFeed').textContent=$('ewaFeed').textContent=$('wpFeed').textContent='Connecting to Cloudflare...';
+  ['bomDot','ewaDot','wpDot','mrDot'].forEach(id=>$(id).className='dot warn');$('bomFeed').textContent=$('ewaFeed').textContent=$('wpFeed').textContent=$('mrFeed').textContent='Connecting to Cloudflare...';
   try{
-    const r=await fetch(`${WORKER}/api/feeds`,{cache:'no-store'});
-    if(!r.ok)throw new Error(`Cloudflare HTTP ${r.status}`);
-    feedData=await r.json();
-    feedData.bom=Array.isArray(feedData.bom)?feedData.bom:[];
-    feedData.emergency=Array.isArray(feedData.emergency)?feedData.emergency:[];
-    feedData.westernPower=Array.isArray(feedData.westernPower)?feedData.westernPower:[];
-    feedData.sources=feedData.sources||{};
-    sourceStatus('bom','bomDot','bomFeed','bomCount');
-    sourceStatus('emergency','ewaDot','ewaFeed','ewaCount');
-    sourceStatus('westernPower','wpDot','wpFeed','wpCount');
-    const total=feedData.bom.length+feedData.emergency.length+feedData.westernPower.length;
-    $('warningCount').textContent=total;
-    $('feedAge').textContent=feedData.updatedAt?`Updated ${fmt(feedData.updatedAt)}`:'No update time';
-    renderWarnings();plot();
-  }catch(e){
-    console.error(e);
-    ['bomDot','ewaDot','wpDot'].forEach(id=>$(id).className='dot bad');
-    $('bomFeed').textContent=$('ewaFeed').textContent=$('wpFeed').textContent='Cloudflare backend unreachable';
-    $('warningCount').textContent='ERR';
-    $('warnings').innerHTML=`<div class="empty">Cloudflare connection failed: ${esc(e.message)}.<br><a href="${WORKER}/api/feeds" target="_blank">Open feed endpoint</a></div>`;
-    $('mapStatus').textContent='Operational feeds unavailable';
-  }
+    const r=await fetch(`${WORKER}/api/feeds`,{cache:'no-store'});if(!r.ok)throw new Error(`Cloudflare HTTP ${r.status}`);feedData=await r.json();feedData.bom=Array.isArray(feedData.bom)?feedData.bom:[];feedData.emergency=Array.isArray(feedData.emergency)?feedData.emergency:[];feedData.westernPower=Array.isArray(feedData.westernPower)?feedData.westernPower:[];feedData.mainRoads=Array.isArray(feedData.mainRoads)?feedData.mainRoads:[];feedData.sources=feedData.sources||{};
+    sourceStatus('bom','bomDot','bomFeed','bomCount');sourceStatus('emergency','ewaDot','ewaFeed','ewaCount');sourceStatus('westernPower','wpDot','wpFeed','wpCount');sourceStatus('mainRoads','mrDot','mrFeed','mrCount');
+    const total=feedData.bom.length+feedData.emergency.length+feedData.westernPower.length+feedData.mainRoads.length;$('warningCount').textContent=total;$('feedAge').textContent=feedData.updatedAt?`Updated ${fmt(feedData.updatedAt)}`:'No update time';renderWarnings();plot();
+  }catch(e){console.error(e);['bomDot','ewaDot','wpDot','mrDot'].forEach(id=>$(id).className='dot bad');$('bomFeed').textContent=$('ewaFeed').textContent=$('wpFeed').textContent=$('mrFeed').textContent='Cloudflare backend unreachable';$('warningCount').textContent='ERR';$('warnings').innerHTML=`<div class="empty">Cloudflare connection failed: ${esc(e.message)}.<br><a href="${WORKER}/api/feeds" target="_blank">Open feed endpoint</a></div>`;$('mapStatus').textContent='Operational feeds unavailable'}
 }
 
-document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{
-  activeFilter=b.dataset.filter;
-  document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('active',x===b));
-  renderWarnings();
-});
+document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{activeFilter=b.dataset.filter;document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('active',x===b));renderWarnings()});
+document.addEventListener('click',e=>{const card=e.target.closest('[data-map-key]');if(!card||e.target.closest('a'))return;focusMapItem(card.dataset.mapKey)});
 
-async function refresh(){
-  await Promise.allSettled([loadPerth(),loadFeeds()]);
-  $('last').textContent=ptime({hour:'2-digit',minute:'2-digit',hour12:false});
-}
-$('refresh').onclick=refresh;
-initMap();
-refresh();
-setInterval(refresh,5*60*1000);
+async function refresh(){await Promise.allSettled([loadPerth(),loadFeeds()]);$('last').textContent=ptime({hour:'2-digit',minute:'2-digit',hour12:false})}
+$('refresh').onclick=refresh;initMap();refresh();setInterval(refresh,5*60*1000);
