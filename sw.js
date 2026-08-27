@@ -1,4 +1,4 @@
-const CACHE='wa-ops-v3-1705';
+const CACHE='wa-ops-v3-1715';
 const STATE='wa-ops-v3-state';
 const STATIC=['./','./dashboard.html','./dashboard.css','./dashboard.js','./dashboard-extras.js','./dashboard-extras-core.js','./v3.css','./v3-intelligence.js','./v3-areas.js','./v3-environment.js','./v3-map-areas.js','./v3-refinements.js','./swin-focus.js','./main-roads-cleanup.js','./weather-overlays.js','./wp-source-clarity.js','./manifest.webmanifest','./icon-192.svg','./icon-512.svg'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(STATIC)).catch(()=>{}).then(()=>self.skipWaiting())));
