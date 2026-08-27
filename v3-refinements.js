@@ -16,4 +16,5 @@ if(!document.querySelector('link[data-waos-map-controls-fix]')){const l=document
 if(!document.querySelector('script[data-waos-swin]')){const s=document.createElement('script');s.src='swin-focus.js?v=20260827-1715';s.dataset.waosSwin='1';document.body.appendChild(s)}
 if(!document.querySelector('script[data-waos-mr-cleanup]')){const s=document.createElement('script');s.src='main-roads-cleanup.js?v=20260827-1705';s.dataset.waosMrCleanup='1';document.body.appendChild(s)}
 if(!document.querySelector('script[data-waos-swin-header]')){const s=document.createElement('script');s.src='swin-header-picture.js?v=20260827-1725';s.dataset.waosSwinHeader='1';document.body.appendChild(s)}
+if(!document.querySelector('script[data-waos-swin-zones]')){const s=document.createElement('script');s.src='swin-zones.js?v=20260827-1845';s.dataset.waosSwinZones='1';document.body.appendChild(s)}
 })();
