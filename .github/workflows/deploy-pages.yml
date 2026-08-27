@@ -23,6 +23,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+      - name: Validate dashboard JavaScript
+        run: |
+          node --check dashboard.js
+          node --check dashboard-extras.js
+          node --check weather-overlays.js
+          node --check v3-intelligence.js
+          node --check v3-areas.js
+          node --check v3-environment.js
+          node --check sw.js
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload site artifact
