@@ -1,0 +1,52 @@
+/* WAOS map controls hotfix — prevent legacy top/bottom rules stretching quick-view controls */
+body.waos-workbench .mapbuttons{
+  position:absolute!important;
+  top:auto!important;
+  bottom:12px!important;
+  left:12px!important;
+  right:auto!important;
+  width:auto!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  display:flex!important;
+  flex-direction:row!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  align-content:center!important;
+  gap:5px!important;
+  padding:5px!important;
+  margin:0!important;
+  overflow-x:auto!important;
+  overflow-y:hidden!important;
+  max-width:calc(100% - 24px)!important;
+  background:#0d1116e8!important;
+  border:1px solid #343c45!important;
+  border-radius:11px!important;
+  backdrop-filter:blur(9px)!important;
+  z-index:720!important;
+}
+body.waos-workbench .mapbuttons button,
+body.waos-workbench .mapbuttons [data-swin-view]{
+  position:static!important;
+  flex:0 0 auto!important;
+  align-self:center!important;
+  width:auto!important;
+  height:31px!important;
+  min-height:31px!important;
+  max-height:31px!important;
+  padding:6px 9px!important;
+  margin:0!important;
+  font-size:9px!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+  writing-mode:horizontal-tb!important;
+  transform:none!important;
+}
+@media(max-width:760px){
+  body.waos-workbench .mapbuttons{
+    left:8px!important;
+    bottom:8px!important;
+    max-width:calc(100% - 16px)!important;
+  }
+}
