@@ -1,7 +1,7 @@
 {
-  "name": "WA Operations Dashboard",
-  "short_name": "WA Ops",
-  "description": "Personal Western Australia situational-awareness dashboard for weather, warnings, outages, roads and environmental conditions.",
+  "name": "WAOS — Western Australia Operations System",
+  "short_name": "WAOS",
+  "description": "Western Australia situational-awareness system for weather, warnings, outages, roads and environmental conditions.",
   "start_url": "./dashboard.html",
   "scope": "./",
   "display": "standalone",
