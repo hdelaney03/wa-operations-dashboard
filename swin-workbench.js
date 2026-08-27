@@ -2,16 +2,16 @@
 'use strict';
 const q=(s,r=document)=>r.querySelector(s),qa=(s,r=document)=>[...r.querySelectorAll(s)];
 const fmt=n=>Number(n||0).toLocaleString('en-AU');
-let ready=false,organising=false,currentFocus='priority',topPriorityItem=null;
+let ready=false,organising=false,topPriorityItem=null;
 
 function V(){return window.WAOpsV3||null}
 function type(i){const v=V();return v?.type?v.type(i):String(i?.source||'').toLowerCase().includes('western')?'wp':String(i?.source||'').toLowerCase().includes('emergency')?'ewa':String(i?.source||'').toLowerCase().includes('main roads')?'mr':'bom'}
 function wpCat(i){try{return typeof wpCategory==='function'?wpCategory(i):(i?.outageCategory||'unknown')}catch{return i?.outageCategory||'unknown'}}
 function items(){const d=typeof feedData!=='undefined'&&feedData?feedData:{};return[...(d.emergency||[]),...(d.bom||[]),...(d.westernPower||[]),...(d.mainRoads||[])]}
 function priority(){const v=V();return v?.priority?v.priority():items().filter(i=>type(i)==='ewa'||type(i)==='bom'||(type(i)==='wp'&&wpCat(i)==='unplanned')||(type(i)==='mr'&&['closed','incident'].includes(i.category)))}
-function score(i){return V()?.score?.(i)||0}
 function label(i){return V()?.label?.(i)||type(i).toUpperCase()}
 function title(i){return i?.title||i?.affectedArea||i?.location||label(i)}
+function escapeHtml(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]))}
 
 function ensureBriefing(){
   if(q('#wbBriefing'))return;
@@ -24,12 +24,10 @@ function ensureBriefing(){
   q('#wbCopyBrief',s)?.addEventListener('click',copyBrief);
 }
 
-function setLayers(next){
-  const boxes=qa('[data-layer-toggle]');
-  boxes.forEach(x=>{const k=x.dataset.layerToggle;const on=next[k]===true;if(x.checked!==on){x.checked=on;x.dispatchEvent(new Event('change',{bubbles:true}))}});
-}
+function setLayers(next){qa('[data-layer-toggle]').forEach(x=>{const on=next[x.dataset.layerToggle]===true;if(x.checked!==on){x.checked=on;x.dispatchEvent(new Event('change',{bubbles:true}))}})}
 function clickFilter(name){const b=q(`[data-filter="${CSS.escape(name)}"]`);if(b)b.click()}
-function applyFocus(mode){currentFocus=mode;qa('[data-wb-focus]').forEach(b=>b.classList.toggle('active',b.dataset.wbFocus===mode));
+function applyFocus(mode){
+  qa('[data-wb-focus]').forEach(b=>b.classList.toggle('active',b.dataset.wbFocus===mode));
   if(mode==='priority'){setLayers({bom:true,ewa:true,wpUnplanned:true,wpPlanned:false,mr:true});clickFilter('priority')}
   if(mode==='power'){setLayers({bom:false,ewa:false,wpUnplanned:true,wpPlanned:true,mr:false});clickFilter('wp')}
   if(mode==='warnings'){setLayers({bom:true,ewa:true,wpUnplanned:false,wpPlanned:false,mr:false});clickFilter('all')}
@@ -38,7 +36,7 @@ function applyFocus(mode){currentFocus=mode;qa('[data-wb-focus]').forEach(b=>b.c
   try{localStorage.setItem('waosWorkbenchFocusV1',mode)}catch{}
 }
 
-function severeWarningCount(){
+function warningCount(){
   const d=typeof feedData!=='undefined'?feedData:{};const e=(d.emergency||[]).length;
   const b=(d.bom||[]).filter(i=>/severe|storm|flood|fire weather|heatwave|cyclone|destructive|damaging/i.test(`${i.title||''} ${i.description||''}`)).length;
   return e+b;
@@ -52,53 +50,57 @@ function updateBriefing(){
   if(!q('#wbBriefing'))return;const d=typeof feedData!=='undefined'?feedData:{};const wp=d.westernPower||[],mr=d.mainRoads||[],p=priority();
   const customers=wp.filter(i=>wpCat(i)==='unplanned').reduce((s,i)=>{const n=Number(i.customersImpacted);return s+(Number.isFinite(n)?n:0)},0);
   const closures=mr.filter(i=>i.category==='closed'||/closed/i.test(`${i.categoryLabel||''} ${i.title||''}`)).length;
-  q('#wbPriority').textContent=fmt(p.length);q('#wbCustomers').textContent=fmt(customers);q('#wbClosures').textContent=fmt(closures);q('#wbWarnings').textContent=fmt(severeWarningCount());
+  q('#wbPriority').textContent=fmt(p.length);q('#wbCustomers').textContent=fmt(customers);q('#wbClosures').textContent=fmt(closures);q('#wbWarnings').textContent=fmt(warningCount());
   topPriorityItem=p[0]||null;const top=q('#wbTopPriority');if(top)top.innerHTML=topPriorityItem?`<strong>Highest priority:</strong> ${escapeHtml(label(topPriorityItem))} — ${escapeHtml(title(topPriorityItem))}`:'<strong>Highest priority:</strong> No priority incidents currently identified.';
   const h=health(),chip=q('#wbHealth');if(chip){chip.className=`wb-health ${h.cls}`.trim();chip.textContent=h.text}
   const statLabel=qa('.topstats .stat span').find(x=>/SWIN items|Live items|Priority/i.test(x.textContent));if(statLabel){statLabel.textContent='Priority';const strong=statLabel.parentElement?.querySelector('strong');if(strong)strong.textContent=fmt(p.length)}
 }
-function escapeHtml(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 
 async function copyBrief(){
   const d=typeof feedData!=='undefined'?feedData:{},wp=d.westernPower||[],mr=d.mainRoads||[],p=priority();
   const customers=wp.filter(i=>wpCat(i)==='unplanned').reduce((s,i)=>s+(Number.isFinite(Number(i.customersImpacted))?Number(i.customersImpacted):0),0);
   const closures=mr.filter(i=>i.category==='closed'||/closed/i.test(`${i.categoryLabel||''} ${i.title||''}`)).length;
-  const time=new Intl.DateTimeFormat('en-AU',{timeZone:'Australia/Perth,dateStyle:'medium',timeStyle:'short'}).format(new Date());
-  const lines=[`WAOS — SWIN operational brief`,`Generated ${time}`,`Priority items: ${p.length}`,`Unplanned power customers shown: ${customers.toLocaleString('en-AU')}`,`Road closures: ${closures}`,`Warning items: ${severeWarningCount()}`,'',...p.slice(0,6).map((i,n)=>`${n+1}. ${label(i)} — ${title(i)}`),'','Values are SWIN-scoped situational-awareness data; verify safety-critical information with official sources.'];
+  const time=new Intl.DateTimeFormat('en-AU',{timeZone:'Australia/Perth',dateStyle:'medium',timeStyle:'short'}).format(new Date());
+  const lines=['WAOS — SWIN operational brief',`Generated ${time}`,`Priority items: ${p.length}`,`Unplanned power customers shown: ${customers.toLocaleString('en-AU')}`,`Road closures: ${closures}`,`Warning items: ${warningCount()}`,'',...p.slice(0,6).map((i,n)=>`${n+1}. ${label(i)} — ${title(i)}`),'','Values are SWIN-scoped situational-awareness data; verify safety-critical information with official sources.'];
   try{await navigator.clipboard.writeText(lines.join('\n'));V()?.toast?.('SWIN shift brief copied')}catch{V()?.toast?.('Unable to copy briefing',true)}
 }
 
+function rename(summary,key,html){if(!summary||summary.dataset[key])return;summary.innerHTML=html;summary.dataset[key]='1'}
+function defaultClose(section){const d=section?.querySelector(':scope > details.fold');if(!d||d.dataset.wbDefaulted)return;d.open=false;d.dataset.wbDefaulted='1'}
 function tidySections(){
   q('#swinOpsOverview')?.remove();
   const panel=q('.ops-panel .panel-content');if(!panel)return;
-  const live=q('#liveIncidentsHeading')?.closest('.ops-section');
-  const layers=q('.layergrid')?.closest('.ops-section');
+  const live=q('#liveIncidentsHeading')?.closest('.ops-section');const layers=q('.layergrid')?.closest('.ops-section');
   const weather=qa('.ops-panel .ops-section').find(s=>/SWIN weather overview/i.test(s.textContent));
-  const trackers=q('#weatherTrackers');const areas=q('#v3MyAreas');const env=q('#v3Environment');
-  const selected=q('#selectedTitle')?.closest('.ops-section');const healthSec=q('#weatherFeed')?.closest('.ops-section');
-  const help=qa('.ops-panel .ops-section').find(s=>/Official sources/i.test(s.textContent));
-  [layers,trackers,areas,env,selected,healthSec,help].filter(Boolean).forEach(s=>s.classList.add('wb-secondary'));
+  const areas=q('#v3MyAreas'),trackers=q('#weatherTrackers'),env=q('#v3Environment');
+  const selected=q('#selectedTitle')?.closest('.ops-section'),healthSec=q('#weatherFeed')?.closest('.ops-section');
+  const help=qa('.ops-panel .ops-section').find(s=>/Sources & verification|Official sources/i.test(s.textContent));
+  [layers,areas,trackers,env,selected,healthSec,help].filter(Boolean).forEach(s=>s.classList.add('wb-secondary'));
   [selected,healthSec,help].filter(Boolean).forEach(s=>s.classList.add('wb-tertiary'));
-  const order=[q('#wbBriefing'),live,weather,trackers,layers,areas,env,selected,healthSec,help].filter(Boolean);
+  // Keep Weather Trackers after Saved Areas to match the existing areas module and avoid competing DOM moves.
+  const order=[q('#wbBriefing'),live,weather,layers,areas,trackers,env,selected,healthSec,help].filter(Boolean);
   const head=q('.ops-head');let anchor=head;for(const sec of order){if(sec.parentElement!==panel||sec.previousElementSibling!==anchor)anchor.insertAdjacentElement('afterend',sec);anchor=sec}
-  if(head){const h=head.querySelector('h2');if(h)h.textContent='SWIN Operations'}
-  // Remove redundant help block while keeping official source verification links.
-  if(help){const using=qa('details.fold',help).find(d=>/Using the map/i.test(d.querySelector('summary')?.textContent||''));using?.remove();const src=qa('details.fold',help).find(d=>/Official sources/i.test(d.querySelector('summary')?.textContent||''));if(src){const sm=src.querySelector('summary');if(sm)sm.innerHTML='Sources & verification <span class="foldhint">official links</span>';src.open=false}}
-  // Secondary panels default closed; the important incident/weather areas stay open.
-  [layers,trackers,areas,env,selected,healthSec].forEach(s=>{const d=s?.querySelector(':scope > details.fold');if(d&&s!==weather)d.open=false});
-  // Rename a few sections to work-oriented labels.
-  const a=areas?.querySelector(':scope > details > summary');if(a)a.innerHTML='Saved work areas <span class="foldhint">watch zones + alerts</span>';
-  const e=env?.querySelector(':scope > details > summary');if(e)e.innerHTML='Fire & environment <span class="foldhint">FDR · TFB · air</span>';
-  const l=layers?.querySelector(':scope > details > summary');if(l)l.innerHTML='Map layers <span class="foldhint">display controls</span>';
-  const t=trackers?.querySelector(':scope > details > summary');if(t)t.innerHTML='Storm tracking <span class="foldhint">radar + lightning</span>';
+  if(head){const h=head.querySelector('h2');if(h&&h.textContent!=='SWIN Operations')h.textContent='SWIN Operations'}
+  if(help){const using=qa('details.fold',help).find(d=>/Using the map/i.test(d.querySelector('summary')?.textContent||''));using?.remove();const src=qa('details.fold',help).find(d=>/Sources & verification|Official sources/i.test(d.querySelector('summary')?.textContent||''));if(src){rename(src.querySelector('summary'),'wbSources','Sources & verification <span class="foldhint">official links</span>');defaultClose(help)}}
+  [layers,areas,trackers,env,selected,healthSec].forEach(defaultClose);
+  rename(areas?.querySelector(':scope > details > summary'),'wbArea','Saved work areas <span class="foldhint">watch zones + alerts</span>');
+  rename(env?.querySelector(':scope > details > summary'),'wbEnv','Fire & environment <span class="foldhint">FDR · TFB · air</span>');
+  rename(layers?.querySelector(':scope > details > summary'),'wbLayers','Map layers <span class="foldhint">display controls</span>');
+  rename(trackers?.querySelector(':scope > details > summary'),'wbTrackers','Storm tracking <span class="foldhint">radar + lightning</span>');
 }
 
 function legend(){const l=q('.legend');if(!l||q('.wb-legend-head',l))return;const h=document.createElement('div');h.className='wb-legend-head';h.innerHTML='<span>Map key</span><button type="button" id="wbLegendToggle">Hide</button>';l.prepend(h);let collapsed=true;try{collapsed=localStorage.getItem('waosLegendOpenV1')!=='1'}catch{};const apply=()=>{l.classList.toggle('wb-collapsed',collapsed);q('#wbLegendToggle',l).textContent=collapsed?'Show':'Hide'};q('#wbLegendToggle',l).onclick=()=>{collapsed=!collapsed;try{localStorage.setItem('waosLegendOpenV1',collapsed?'0':'1')}catch{}apply()};apply()}
 
 function shortcuts(){if(document.body.dataset.wbShortcuts)return;document.body.dataset.wbShortcuts='1';document.addEventListener('keydown',e=>{const tag=document.activeElement?.tagName;if(['INPUT','TEXTAREA','SELECT'].includes(tag)||document.activeElement?.isContentEditable||e.ctrlKey||e.metaKey||e.altKey)return;const k=e.key.toLowerCase();if(k==='r'){e.preventDefault();q('#refresh')?.click();V()?.toast?.('Refreshing SWIN feeds')}if(k==='p'){e.preventDefault();applyFocus('priority')}if(k==='1'){e.preventDefault();applyFocus('power')}if(k==='2'){e.preventDefault();applyFocus('warnings')}if(k==='3'){e.preventDefault();applyFocus('roads')}if(k==='0'){e.preventDefault();applyFocus('all')}})}
 
-function organise(){if(organising)return;organising=true;try{document.body.classList.add('waos-workbench');ensureBriefing();tidySections();legend();updateBriefing();const label=qa('.topstats .stat span').find(x=>/Weather/i.test(x.textContent));if(label)label.textContent='SWIN weather';const ref=q('#refresh');if(ref)ref.textContent='Refresh';}finally{organising=false}}
+function organise(){if(organising)return;organising=true;try{document.body.classList.add('waos-workbench');ensureBriefing();tidySections();legend();updateBriefing();const weatherLabel=qa('.topstats .stat span').find(x=>/Weather/i.test(x.textContent));if(weatherLabel&&weatherLabel.textContent!=='SWIN weather')weatherLabel.textContent='SWIN weather';const ref=q('#refresh');if(ref&&ref.textContent!=='Refresh')ref.textContent='Refresh'}finally{organising=false}}
 
-function boot(){if(ready)return;if(typeof map==='undefined'||!map||typeof feedData==='undefined'||!q('.ops-panel')){setTimeout(boot,150);return}ready=true;organise();shortcuts();let saved='priority';try{saved=localStorage.getItem('waosWorkbenchFocusV1')||'priority'}catch{};setTimeout(()=>applyFocus(saved),900);setInterval(updateBriefing,3000);const panel=q('.ops-panel');if(panel)new MutationObserver(()=>organise()).observe(panel,{childList:true,subtree:true});q('#refresh')?.addEventListener('click',()=>setTimeout(()=>{organise();updateBriefing()},900));console.info('WAOS SWIN workbench loaded')}
+function boot(){
+  if(ready)return;if(typeof map==='undefined'||!map||typeof feedData==='undefined'||!q('.ops-panel')){setTimeout(boot,150);return}ready=true;organise();shortcuts();
+  let saved='priority';try{saved=localStorage.getItem('waosWorkbenchFocusV1')||'priority'}catch{};setTimeout(()=>applyFocus(saved),1000);
+  setTimeout(organise,1800);setTimeout(organise,4000);setInterval(updateBriefing,3000);
+  const panel=q('.ops-panel .panel-content');if(panel)new MutationObserver(()=>organise()).observe(panel,{childList:true});
+  q('#refresh')?.addEventListener('click',()=>setTimeout(()=>{organise();updateBriefing()},900));console.info('WAOS SWIN workbench loaded')
+}
 boot();
 })();
