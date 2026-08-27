@@ -1,11 +1,13 @@
 (function(){
 'use strict';
-const q=s=>document.querySelector(s);
-function category(i){try{if(typeof wpCategory==='function')return wpCategory(i)}catch{}if(i?.outageCategory)return i.outageCategory;if(i?.planned===true)return'planned';if(i?.planned===false)return'unplanned';return'unknown'}
-function counts(){const d=typeof feedData!=='undefined'&&feedData?feedData:{};const wp=Array.isArray(d.westernPower)?d.westernPower:[];const c={ewa:Array.isArray(d.emergency)?d.emergency.length:0,bom:Array.isArray(d.bom)?d.bom.length:0,unplanned:wp.filter(x=>category(x)==='unplanned').length,planned:wp.filter(x=>category(x)==='planned').length,mr:Array.isArray(d.mainRoads)?d.mainRoads.length:0};c.total=c.ewa+c.bom+c.unplanned+c.planned+c.mr;return c}
-function removeDuplicates(){q('#swinOpsOverview')?.remove();q('#swinSummary')?.remove()}
-function ensureHost(){let host=q('.mapcard.swin-header-picture');if(host)return host;host=q('.mapcard');if(!host)return null;host.classList.add('swin-header-picture');host.setAttribute('aria-label','SWIN operational picture');host.innerHTML=`<div class="swin-hp-top"><strong class="swin-hp-title">SWIN operational picture</strong><span class="swin-hp-sub">Western Power network footprint only</span><b class="swin-hp-badge">SWIN</b></div><div class="swin-hp-grid" aria-label="SWIN live operational counts"><div class="swin-hp-stat em"><span>Emergency WA</span><b id="swinHpEwa">--</b></div><div class="swin-hp-stat bom"><span>BOM warnings</span><b id="swinHpBom">--</b></div><div class="swin-hp-stat unp"><span>Unplanned power</span><b id="swinHpUnplanned">--</b></div><div class="swin-hp-stat pln"><span>Planned power</span><b id="swinHpPlanned">--</b></div><div class="swin-hp-stat mr"><span>Main Roads</span><b id="swinHpMr">--</b></div><div class="swin-hp-stat total"><span>Total live items</span><b id="swinHpTotal">--</b></div></div><div class="swin-hp-note">All operational feeds on this page are scoped to items mapped within, crossing, or clearly referring to the Western Power SWIN footprint. Boundary is indicative for situational awareness.</div>`;return host}
-function update(){removeDuplicates();if(!ensureHost())return;const c=counts();const vals={swinHpEwa:c.ewa,swinHpBom:c.bom,swinHpUnplanned:c.unplanned,swinHpPlanned:c.planned,swinHpMr:c.mr,swinHpTotal:c.total};for(const[id,v]of Object.entries(vals)){const el=document.getElementById(id);if(el)el.textContent=Number(v).toLocaleString('en-AU')}}
-function boot(){if(!ensureHost()){setTimeout(boot,100);return}update();setInterval(update,1500);document.getElementById('refresh')?.addEventListener('click',()=>setTimeout(update,500));new MutationObserver(()=>removeDuplicates()).observe(document.querySelector('.ops-panel')||document.body,{childList:true,subtree:true})}
+function category(i){try{return typeof wpCategory==='function'?wpCategory(i):(i?.outageCategory||'unknown')}catch{return i?.outageCategory||'unknown'}}
+function update(){
+  const d=typeof feedData!=='undefined'&&feedData?feedData:{},wp=Array.isArray(d.westernPower)?d.westernPower:[];
+  const c={ewa:(d.emergency||[]).length,bom:(d.bom||[]).length,unplanned:wp.filter(x=>category(x)==='unplanned').length,planned:wp.filter(x=>category(x)==='planned').length,mr:(d.mainRoads||[]).length};c.total=c.ewa+c.bom+c.unplanned+c.planned+c.mr;
+  const vals={swinHpEwa:c.ewa,swinHpBom:c.bom,swinHpUnplanned:c.unplanned,swinHpPlanned:c.planned,swinHpMr:c.mr,swinHpTotal:c.total};
+  for(const[id,v]of Object.entries(vals)){const el=document.getElementById(id);if(el)el.textContent=Number(v).toLocaleString('en-AU')}
+  document.getElementById('swinOpsOverview')?.remove();document.getElementById('swinSummary')?.remove();
+}
+function boot(){if(typeof feedData==='undefined'||!document.getElementById('swinHpTotal')){setTimeout(boot,120);return}update();setInterval(update,2000);document.getElementById('refresh')?.addEventListener('click',()=>setTimeout(update,700))}
 boot();
 })();
