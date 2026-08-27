@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "wa-operations-dashboard-new",
-  "main": "worker/src/index.js",
+  "main": "worker/src/index-v9.js",
   "compatibility_date": "2026-08-26",
   "vars": {
     "ALLOWED_ORIGIN": "https://hdelaney03.github.io"
