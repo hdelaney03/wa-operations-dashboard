@@ -5,11 +5,11 @@ const TITLE='GRIDPULSE — SWIN Operations';
 const DESCRIPTION='GRIDPULSE — SWIN operations intelligence for outages, warnings, weather, roads, emergency facilities and environmental conditions.';
 
 function apply(){
-  document.title=TITLE;
+  if(document.title!==TITLE)document.title=TITLE;
   const desc=document.querySelector('meta[name="description"]');
-  if(desc)desc.content=DESCRIPTION;
+  if(desc&&desc.content!==DESCRIPTION)desc.content=DESCRIPTION;
   const apple=document.querySelector('meta[name="apple-mobile-web-app-title"]');
-  if(apple)apple.content=BRAND;
+  if(apple&&apple.content!==BRAND)apple.content=BRAND;
 
   const brand=document.querySelector('.top > .brand');
   if(brand&&!brand.dataset.gridpulse){
@@ -18,9 +18,8 @@ function apply(){
   }
 
   document.querySelectorAll('.notice').forEach(n=>{
-    if(/WAOS is a situational-awareness workbench/i.test(n.textContent||'')){
-      n.textContent=(n.textContent||'').replace(/WAOS/g,BRAND);
-    }
+    const t=n.textContent||'';
+    if(/WAOS is a situational-awareness workbench/i.test(t))n.textContent=t.replace(/WAOS/g,BRAND);
   });
 }
 
@@ -45,21 +44,14 @@ function brandedBrief(e){
   const text=id=>document.getElementById(id)?.textContent?.trim()||'--';
   const time=new Intl.DateTimeFormat('en-AU',{timeZone:'Australia/Perth',dateStyle:'medium',timeStyle:'short'}).format(new Date());
   const top=document.getElementById('wbTopPriority')?.textContent?.trim()||'No priority incident identified.';
-  const lines=[
-    'GRIDPULSE — SWIN operational brief',
-    `Generated ${time}`,
-    `Priority items: ${text('wbPriority')}`,
-    `Unplanned power customers shown: ${text('wbCustomers')}`,
-    `Road closures: ${text('wbClosures')}`,
-    `Warning items: ${text('wbWarnings')}`,
-    '',top,'',
-    'Values are SWIN-scoped situational-awareness data; verify safety-critical information with official sources.'
-  ];
+  const lines=['GRIDPULSE — SWIN operational brief',`Generated ${time}`,`Priority items: ${text('wbPriority')}`,`Unplanned power customers shown: ${text('wbCustomers')}`,`Road closures: ${text('wbClosures')}`,`Warning items: ${text('wbWarnings')}`,'',top,'','Values are SWIN-scoped situational-awareness data; verify safety-critical information with official sources.'];
   navigator.clipboard?.writeText(lines.join('\n')).then(()=>window.WAOpsV3?.toast?.('GRIDPULSE shift brief copied')).catch(()=>window.WAOpsV3?.toast?.('Unable to copy briefing',true));
 }
 
-style();apply();
+style();
+apply();
 document.addEventListener('click',brandedBrief,true);
-new MutationObserver(apply).observe(document.documentElement,{childList:true,subtree:true});
-setTimeout(apply,500);setTimeout(apply,1800);setTimeout(apply,4500);
+window.addEventListener('load',apply,{once:true});
+setTimeout(apply,1200);
+console.info('GRIDPULSE branding loaded');
 })();
