@@ -1,4 +1,4 @@
-name: Deploy WA Operations Dashboard
+name: Deploy GRIDPULSE
 
 on:
   push:
@@ -38,6 +38,7 @@ jobs:
           node --check swin-workbench.js
           node --check swin-zones.js
           node --check operational-facilities.js
+          node --check gridpulse-brand.js
           node --check main-roads-cleanup.js
           node --check wp-source-clarity.js
           node --check sw.js
