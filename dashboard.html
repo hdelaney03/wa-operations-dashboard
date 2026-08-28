@@ -4,21 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#090b0e">
-<meta name="description" content="WAOS — Western Power SWIN operational workbench for outages, warnings, weather, roads, fire and environmental conditions.">
-<title>WAOS — SWIN Operations</title>
+<meta name="description" content="GRIDPULSE — SWIN operations intelligence for outages, warnings, weather, roads, emergency facilities and environmental conditions.">
+<title>GRIDPULSE — SWIN Operations</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="dashboard.css?v=20260827-1810">
 <link rel="stylesheet" href="v3.css?v=20260827-1810">
 <link rel="stylesheet" href="swin-workbench.css?v=20260827-1810">
 <link rel="stylesheet" href="map-controls-hotfix.css?v=20260827-1830">
-<link rel="manifest" href="manifest.webmanifest?v=20260827-1810">
-<link rel="icon" href="icon-192.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest?v=20260828-1420">
+<link rel="icon" href="icon-192.svg?v=20260828-1420" type="image/svg+xml">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="WAOS">
+<meta name="apple-mobile-web-app-title" content="GRIDPULSE">
 </head>
 <body>
 <header class="top" aria-label="Dashboard status header">
-  <div class="brand"><h1 aria-label="Western Australia Operations System" title="Western Australia Operations System">WAOS</h1></div>
+  <div class="brand" data-gridpulse="1"><h1 aria-label="GRIDPULSE — SWIN Operations Intelligence" title="GRIDPULSE — SWIN Operations Intelligence">GRIDPULSE</h1><span class="gridpulse-brand-sub">SWIN OPERATIONS INTELLIGENCE</span></div>
   <section class="mapcard swin-header-picture" aria-label="SWIN operational picture">
     <div class="swin-hp-top">
       <strong class="swin-hp-title">SWIN operational picture</strong>
@@ -112,7 +112,7 @@
         <a class="link red" href="https://www.emergency.wa.gov.au/" target="_blank" rel="noopener"><strong>Emergency WA</strong><span>Official emergency warnings and incidents</span></a>
         <a class="link" href="https://www.bom.gov.au/wa/warnings/" target="_blank" rel="noopener"><strong>BOM WA warnings</strong><span>Official Bureau of Meteorology warnings</span></a>
         <a class="link" href="https://travelmap.mainroads.wa.gov.au/Home/Map" target="_blank" rel="noopener"><strong>Main Roads Travel Map</strong><span>Official road incidents, closures and travel information</span></a>
-      </div><p class="notice" style="margin-top:8px">WAOS is a situational-awareness workbench. Always verify safety-critical information with the official source.</p></div></details></section>
+      </div><p class="notice" style="margin-top:8px">GRIDPULSE is a situational-awareness workbench. Always verify safety-critical information with the official source.</p></div></details></section>
     </div>
   </aside>
 </main>
@@ -133,5 +133,6 @@
 <script src="swin-workbench.js?v=20260827-1810"></script>
 <script src="swin-zones.js?v=20260827-1910"></script>
 <script src="operational-facilities.js?v=20260827-2005"></script>
+<script src="gridpulse-brand.js?v=20260828-1420"></script>
 </body>
 </html>
