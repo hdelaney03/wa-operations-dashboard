@@ -20,5 +20,6 @@ if(!document.querySelector('script[data-waos-mr-cleanup]')){const s=document.cre
 if(!document.querySelector('script[data-waos-swin-header]')){const s=document.createElement('script');s.src='swin-header-picture.js?v=20260827-1725';s.dataset.waosSwinHeader='1';document.body.appendChild(s)}
 if(!document.querySelector('script[data-waos-swin-zones]')){const s=document.createElement('script');s.src='swin-zones.js?v=20260827-1845';s.dataset.waosSwinZones='1';document.body.appendChild(s)}
 if(!document.querySelector('script[data-gridpulse-brand]')){const s=document.createElement('script');s.src='gridpulse-brand.js?v=20260828-1005';s.dataset.gridpulseBrand='1';document.body.appendChild(s)}
+if(!document.querySelector('script[data-gridpulse-wp-live-guard]')){const s=document.createElement('script');s.src='wp-live-guard.js?v=20260828-1455';s.dataset.gridpulseWpLiveGuard='1';document.body.appendChild(s)}
 fixBasemapControl();
 })();
