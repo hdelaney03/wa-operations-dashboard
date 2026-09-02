@@ -1,4 +1,4 @@
-name: Deploy GRIDPULSE
+name: Deploy WAOS
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-      - name: Validate dashboard JavaScript
+      - name: Validate legacy dashboard JavaScript
         run: |
           node --check dashboard.js
           node --check dashboard-extras.js
@@ -45,6 +45,20 @@ jobs:
           node --check sw.js
           node --check worker/src/history.js
           node --check worker/src/index-v9.js
+      - name: Validate WAOS V4
+        run: |
+          node --check v4/core.js
+          node --check v4/data.js
+          node --check v4/facilities.js
+          node --check v4/map.js
+          node --check v4/app.js
+          node --check v4/sw.js
+          test -s v4/index.html
+          test -s v4/styles.css
+          test -s v4/manifest.webmanifest
+          grep -q 'id="map"' v4/index.html
+          grep -q 'operational-facilities' v4/index.html
+          grep -q 'WAOS V4' v4/index.html
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload site artifact
