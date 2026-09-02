@@ -1,0 +1,32 @@
+name: Validate WAOS V4
+
+on:
+  push:
+    branches: [waos-v4-rebuild]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Validate JavaScript
+        run: |
+          node --check v4/core.js
+          node --check v4/data.js
+          node --check v4/facilities.js
+          node --check v4/map.js
+          node --check v4/app.js
+          node --check v4/sw.js
+      - name: Validate app shell
+        run: |
+          test -s v4/index.html
+          test -s v4/styles.css
+          test -s v4/manifest.webmanifest
+          grep -q 'id="map"' v4/index.html
+          grep -q 'operational-facilities' v4/index.html
+          grep -q 'WAOS V4' v4/index.html
