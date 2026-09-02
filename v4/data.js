@@ -1,0 +1,26 @@
+(function(){
+'use strict';
+const A=window.WAOS4,U=A.utils;
+const WORKER='https://wa-operations-dashboard-new.haidenp10.workers.dev';
+const FEED_CACHE='feed-cache';
+const FEED_CACHE_MAX=12*60*60*1000;
+let pollTimer=null,weatherTimer=null;
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+async function request(url,{timeout=18000,retries=1,...opts}={}){let last;for(let i=0;i<=retries;i++){const ac=new AbortController(),t=setTimeout(()=>ac.abort(),timeout);try{const r=await fetch(url,{cache:'no-store',...opts,signal:ac.signal});clearTimeout(t);if(!r.ok)throw new Error(`HTTP ${r.status}`);return r;}catch(e){clearTimeout(t);last=e;if(i<retries)await sleep(500*(i+1));}}throw last||new Error('Request failed');}
+function validFeedShape(d){return d&&Array.isArray(d.bom)&&Array.isArray(d.emergency)&&Array.isArray(d.westernPower)&&Array.isArray(d.mainRoads);}
+function cachedFeed(){const c=U.loadJSON(FEED_CACHE,null);if(!c?.savedAt||!validFeedShape(c.data))return null;if(Date.now()-c.savedAt>FEED_CACHE_MAX)return null;return c.data;}
+function cacheFeed(data){U.saveJSON(FEED_CACHE,{savedAt:Date.now(),data});}
+function normalizeFeed(data){return {bom:Array.isArray(data?.bom)?data.bom:[],emergency:Array.isArray(data?.emergency)?data.emergency:[],westernPower:Array.isArray(data?.westernPower)?data.westernPower:[],mainRoads:Array.isArray(data?.mainRoads)?data.mainRoads:[],sources:data?.sources||{},updatedAt:data?.updatedAt||new Date().toISOString(),version:data?.version||null,usingCache:false,error:null};}
+async function loadFeeds({silent=false}={}){if(A.state.refreshing&&!silent)return A.state.feeds;A.state.refreshing=true;A.emit('refreshing',{value:true});try{const r=await request(`${WORKER}/api/feeds`,{timeout:20000,retries:1});const data=await r.json();if(!validFeedShape(data))throw new Error('Unexpected feed response');A.state.feeds=normalizeFeed(data);cacheFeed(A.state.feeds);A.emit('feeds',{cached:false});return A.state.feeds;}catch(error){const cached=cachedFeed();if(cached){A.state.feeds={...normalizeFeed(cached),usingCache:true,error:String(error?.message||error)};A.emit('feeds',{cached:true,error});return A.state.feeds;}A.state.feeds={...A.state.feeds,error:String(error?.message||error)};A.emit('feeds',{cached:false,error});throw error;}finally{A.state.refreshing=false;A.emit('refreshing',{value:false});}}
+function weatherUrl(lat,lon,days=7){return `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&current=temperature_2m,apparent_temperature,precipitation,rain,weather_code,wind_speed_10m,wind_gusts_10m,relative_humidity_2m&hourly=precipitation_probability&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_gusts_10m_max&timezone=Australia%2FPerth&forecast_days=${days}`;}
+async function weatherAt(lat,lon,days=7){const r=await request(weatherUrl(lat,lon,days),{timeout:14000,retries:1});return r.json();}
+async function loadPerthWeather(){try{const data=await weatherAt(A.PERTH.lat,A.PERTH.lon,7);A.state.weather.perth=data;A.state.weather.updatedAt=new Date().toISOString();A.state.weather.error=null;A.emit('weather',{target:'perth'});return data;}catch(e){A.state.weather.error=String(e?.message||e);A.emit('weather',{target:'perth',error:e});return null;}}
+async function loadSelectedWeather(lat,lon,label){A.state.selected={lat:+lat,lon:+lon,label:label||`${(+lat).toFixed(4)}, ${(+lon).toFixed(4)}`};A.emit('selection',{phase:'start'});try{const data=await weatherAt(lat,lon,2);A.state.weather.selected=data;A.emit('selection',{phase:'weather'});return data;}catch(e){A.state.weather.selected=null;A.emit('selection',{phase:'weather',error:e});return null;}}
+async function loadFireDanger(){try{const r=await request(`${WORKER}/api/fire-danger`,{timeout:16000,retries:0});const data=await r.json();A.state.fireDanger={data,updatedAt:data.updatedAt||new Date().toISOString(),error:data.ok===false?data.error||null:null};A.emit('fireDanger',{});return data;}catch(e){A.state.fireDanger.error=String(e?.message||e);A.emit('fireDanger',{error:e});return null;}}
+async function loadOutageHistory(){try{const r=await request(`${WORKER}/api/outage-history`,{timeout:16000,retries:0});const data=await r.json();A.state.outageHistory={data,updatedAt:data.updatedAt||new Date().toISOString(),error:null};A.emit('outageHistory',{});return data;}catch(e){A.state.outageHistory.error=String(e?.message||e);A.emit('outageHistory',{error:e});return null;}}
+async function refreshAll(){return Promise.allSettled([loadFeeds(),loadPerthWeather(),loadFireDanger(),loadOutageHistory()]);}
+function start(){clearInterval(pollTimer);clearInterval(weatherTimer);pollTimer=setInterval(()=>loadFeeds({silent:true}),5*60*1000);weatherTimer=setInterval(()=>{loadPerthWeather();loadFireDanger();},15*60*1000);}
+function stop(){clearInterval(pollTimer);clearInterval(weatherTimer);}
+window.addEventListener('online',()=>{A.state.online=true;A.emit('network',{online:true});loadFeeds({silent:true});});window.addEventListener('offline',()=>{A.state.online=false;A.emit('network',{online:false});});
+A.data={WORKER,request,loadFeeds,weatherAt,loadPerthWeather,loadSelectedWeather,loadFireDanger,loadOutageHistory,refreshAll,start,stop};
+})();
