@@ -1,6 +1,8 @@
 name: Validate WAOS V4
 
 on:
+  push:
+    branches: [waos-v4-rebuild]
   workflow_dispatch:
 
 permissions:
