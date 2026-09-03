@@ -59,6 +59,21 @@ jobs:
           grep -q 'id="map"' v4/index.html
           grep -q 'operational-facilities' v4/index.html
           grep -q 'WAOS V4' v4/index.html
+      - name: Validate WAOS V5
+        run: |
+          node --check v5/js/config.js
+          node --check v5/js/utils.js
+          node --check v5/js/data.js
+          node --check v5/js/facilities.js
+          node --check v5/js/map.js
+          node --check v5/js/app.js
+          node --check v5/sw.js
+          test -s v5/index.html
+          test -s v5/styles.css
+          test -s v5/manifest.webmanifest
+          grep -q 'id="map"' v5/index.html
+          grep -q 'data-section="facilities"' v5/index.html
+          grep -q 'WAOS — Operations' v5/index.html
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload site artifact
