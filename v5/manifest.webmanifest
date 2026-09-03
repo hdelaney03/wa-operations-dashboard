@@ -1,0 +1,14 @@
+{
+  "name":"WAOS — Western Australia Operations System",
+  "short_name":"WAOS",
+  "description":"Personal SWIN situational-awareness dashboard for outages, warnings, roads, weather and operational facilities.",
+  "start_url":"./",
+  "scope":"./",
+  "display":"standalone",
+  "background_color":"#0b0f14",
+  "theme_color":"#0b0f14",
+  "icons":[
+    {"src":"../icon-192.svg","sizes":"192x192","type":"image/svg+xml","purpose":"any maskable"},
+    {"src":"../icon-512.svg","sizes":"512x512","type":"image/svg+xml","purpose":"any maskable"}
+  ]
+}
