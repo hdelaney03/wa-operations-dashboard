@@ -1,4 +1,4 @@
-export const VERSION='5.0.0';
+export const VERSION='5.0.1';
 export const WORKER='https://wa-operations-dashboard-new.haidenp10.workers.dev';
 export const PERTH={lat:-31.9523,lon:115.8613};
 export const REFRESH_MS=5*60*1000;
