@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b0f14">
+  <meta name="description" content="WAOS — Western Australia Operations System. Personal SWIN situational-awareness dashboard for outages, warnings, roads, weather and operational facilities.">
+  <title>WAOS — Operations</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="./styles.css?v=5.0.0">
+  <link rel="manifest" href="./manifest.webmanifest?v=5.0.0">
+  <link rel="icon" href="../icon-192.svg" type="image/svg+xml">
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="topbar">
+      <div class="brand-block">
+        <div class="brand-mark">WA</div>
+        <div>
+          <h1>WAOS</h1>
+          <p>SWIN operational awareness</p>
+        </div>
+      </div>
+      <div class="top-status" aria-label="System status">
+        <span class="status-pill" id="overallStatus"><i></i><b>Connecting</b></span>
+        <span class="top-meta"><small>Perth</small><b id="clock">--:--</b></span>
+        <span class="top-meta"><small>Updated</small><b id="updatedAt">--</b></span>
+      </div>
+      <div class="top-actions">
+        <button class="icon-btn" id="refreshBtn" type="button" title="Refresh data" aria-label="Refresh data">↻</button>
+        <button class="icon-btn mobile-only" id="panelToggle" type="button" title="Open operations panel" aria-label="Open operations panel">☰</button>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <nav class="rail" aria-label="Primary navigation">
+        <button class="rail-btn active" data-section="live" type="button"><span>◎</span><b>Live</b></button>
+        <button class="rail-btn" data-section="power" type="button"><span>ϟ</span><b>Power</b></button>
+        <button class="rail-btn" data-section="warnings" type="button"><span>!</span><b>Warnings</b></button>
+        <button class="rail-btn" data-section="roads" type="button"><span>⇄</span><b>Roads</b></button>
+        <button class="rail-btn" data-section="facilities" type="button"><span>+</span><b>Facilities</b></button>
+        <button class="rail-btn" data-section="weather" type="button"><span>☁</span><b>Weather</b></button>
+        <button class="rail-btn" data-section="sources" type="button"><span>●</span><b>Sources</b></button>
+      </nav>
+
+      <main class="map-stage" aria-label="Operations map">
+        <div id="map" class="map"></div>
+
+        <form class="search-box" id="searchForm" role="search">
+          <span class="search-icon">⌕</span>
+          <input id="searchInput" type="search" autocomplete="street-address" placeholder="Search within the SWIN" aria-label="Search a place within the SWIN">
+          <button type="submit">Find</button>
+        </form>
+        <div class="search-results hidden" id="searchResults"></div>
+
+        <div class="map-toolbar" aria-label="Map tools">
+          <button id="locateBtn" type="button" title="My location">⌖</button>
+          <button id="basemapBtn" type="button" title="Change map style">▱</button>
+        </div>
+        <div class="basemap-menu hidden" id="basemapMenu">
+          <button data-basemap="street" class="active" type="button">Street</button>
+          <button data-basemap="satellite" type="button">Satellite</button>
+          <button data-basemap="topo" type="button">Topo</button>
+        </div>
+
+        <div class="zone-strip" id="zoneStrip" aria-label="Operational work zones">
+          <button type="button" class="active" data-zone="swin">SWIN</button>
+          <button type="button" data-zone="metro">Metro</button>
+          <button type="button" data-zone="southmetro">South Metro</button>
+          <button type="button" data-zone="northmetro">North Metro</button>
+          <button type="button" data-zone="southcountry">South Country</button>
+          <button type="button" data-zone="northcountry">North Country</button>
+          <button type="button" data-zone="eastcountry">East Country</button>
+        </div>
+
+        <div class="map-freshness" id="freshnessBadge">Waiting for feeds</div>
+      </main>
+
+      <aside class="ops-panel" id="opsPanel" aria-label="Operations panel">
+        <button class="sheet-handle mobile-only" id="sheetHandle" type="button" aria-label="Toggle operations panel"><span></span></button>
+        <div class="panel-head">
+          <div>
+            <small id="panelEyebrow">SWIN overview</small>
+            <h2 id="panelTitle">Live operations</h2>
+          </div>
+          <span class="zone-badge" id="zoneBadge">SWIN</span>
+        </div>
+
+        <section class="metric-grid" id="metricGrid" aria-label="Operational summary">
+          <button class="metric" data-metric="priority" type="button"><span>Priority</span><b id="metricPriority">--</b><small>attention items</small></button>
+          <button class="metric" data-metric="customers" type="button"><span>Customers</span><b id="metricCustomers">--</b><small>unplanned impact</small></button>
+          <button class="metric" data-metric="outages" type="button"><span>Outages</span><b id="metricOutages">--</b><small>unplanned</small></button>
+          <button class="metric" data-metric="roads" type="button"><span>Closures</span><b id="metricClosures">--</b><small>road closures</small></button>
+        </section>
+
+        <div class="panel-body">
+          <section class="panel-view active" data-view="live">
+            <div class="section-tools">
+              <div class="segmented" id="liveFilters">
+                <button class="active" data-live-filter="all" type="button">All</button>
+                <button data-live-filter="priority" type="button">Priority</button>
+                <button data-live-filter="nearby" type="button">Map view</button>
+              </div>
+              <span class="item-count" id="liveCount">0</span>
+            </div>
+            <div class="incident-list" id="incidentList"><div class="empty-state">Connecting to operational feeds…</div></div>
+          </section>
+
+          <section class="panel-view" data-view="power">
+            <div class="section-intro"><h3>Western Power</h3><p>Planned and unplanned outages from the public Western Power outage feed.</p></div>
+            <div class="toggle-list">
+              <label><span><i class="dot orange"></i>Unplanned outages</span><input type="checkbox" data-layer="wpUnplanned"></label>
+              <label><span><i class="dot green"></i>Planned outages</span><input type="checkbox" data-layer="wpPlanned"></label>
+            </div>
+            <div class="incident-list compact" id="powerList"></div>
+          </section>
+
+          <section class="panel-view" data-view="warnings">
+            <div class="section-intro"><h3>Warnings & emergencies</h3><p>Official BOM warnings and Emergency WA items scoped to the SWIN.</p></div>
+            <div class="toggle-list">
+              <label><span><i class="dot yellow"></i>BOM warnings</span><input type="checkbox" data-layer="bom"></label>
+              <label><span><i class="dot red"></i>Emergency WA</span><input type="checkbox" data-layer="ewa"></label>
+            </div>
+            <div class="incident-list compact" id="warningList"></div>
+          </section>
+
+          <section class="panel-view" data-view="roads">
+            <div class="section-intro"><h3>Main Roads</h3><p>Incidents, closures, signals, restrictions and other travel-map items.</p></div>
+            <div class="toggle-list">
+              <label><span><i class="dot blue"></i>Main Roads items</span><input type="checkbox" data-layer="mr"></label>
+              <label><span><i class="dot cyan"></i>Roadworks</span><input type="checkbox" data-layer="mrRoadworks"></label>
+            </div>
+            <div class="incident-list compact" id="roadList"></div>
+          </section>
+
+          <section class="panel-view" data-view="facilities">
+            <div class="section-intro"><h3>Operational facilities</h3><p>Reference locations only. They do not indicate dispatch availability, staffing or operational status.</p></div>
+            <div class="facility-grid" id="facilityControls">
+              <label><input type="checkbox" data-facility="police"><span class="facility-icon police">P</span><b>Police</b><small id="facCountPolice">--</small></label>
+              <label><input type="checkbox" data-facility="fire"><span class="facility-icon fire">F</span><b>Fire / DFES</b><small id="facCountFire">--</small></label>
+              <label><input type="checkbox" data-facility="ambulance"><span class="facility-icon ambulance">A</span><b>Ambulance</b><small id="facCountAmbulance">--</small></label>
+              <label><input type="checkbox" data-facility="hospital"><span class="facility-icon hospital">H</span><b>Emergency hospitals</b><small id="facCountHospital">--</small></label>
+              <label><input type="checkbox" data-facility="wp"><span class="facility-icon wp">WP</span><b>WP locations</b><small id="facCountWp">--</small></label>
+            </div>
+            <button class="wide-btn" id="loadFacilitiesBtn" type="button">Load selected facilities for this zone</button>
+            <p class="source-note" id="facilityStatus">Fire and emergency hospitals use WA Government spatial data. Police and ambulance use mapped public locations on demand. Western Power is limited to publicly documented work locations.</p>
+          </section>
+
+          <section class="panel-view" data-view="weather">
+            <div class="weather-now">
+              <div><small>Perth now</small><b id="weatherTemp">--°</b><span id="weatherCondition">Loading…</span></div>
+              <div class="weather-stats">
+                <p><span>Feels</span><b id="weatherFeels">--°</b></p>
+                <p><span>Wind</span><b id="weatherWind">--</b></p>
+                <p><span>Gusts</span><b id="weatherGust">--</b></p>
+                <p><span>Rain</span><b id="weatherRain">--</b></p>
+              </div>
+            </div>
+            <div class="forecast" id="forecast"></div>
+            <div class="section-intro radar-intro"><h3>Radar</h3><p>Optional RainViewer radar overlay. Loaded only when switched on.</p></div>
+            <div class="toggle-list"><label><span><i class="dot purple"></i>Weather radar</span><input type="checkbox" id="radarToggle"></label></div>
+          </section>
+
+          <section class="panel-view" data-view="sources">
+            <div class="section-intro"><h3>Source health</h3><p>Each source reports independently. A failed source does not blank the other feeds.</p></div>
+            <div class="source-list" id="sourceList"></div>
+            <div class="verification-links">
+              <a href="https://www.westernpower.com.au/faults-outages/power-outages/" target="_blank" rel="noopener">Western Power outages</a>
+              <a href="https://www.emergency.wa.gov.au/" target="_blank" rel="noopener">Emergency WA</a>
+              <a href="https://www.bom.gov.au/wa/warnings/" target="_blank" rel="noopener">BOM WA warnings</a>
+              <a href="https://travelmap.mainroads.wa.gov.au/Home/Map" target="_blank" rel="noopener">Main Roads Travel Map</a>
+            </div>
+            <p class="source-note">WAOS is a personal situational-awareness tool, not an official Western Power system. Verify safety-critical information with the relevant official source.</p>
+          </section>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <div class="detail-sheet hidden" id="detailSheet" role="dialog" aria-modal="false" aria-label="Selected item details">
+    <button class="detail-close" id="detailClose" type="button" aria-label="Close details">×</button>
+    <div id="detailContent"></div>
+  </div>
+
+  <div class="toast hidden" id="toast" role="status"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="./js/app.js?v=5.0.0"></script>
+</body>
+</html>
