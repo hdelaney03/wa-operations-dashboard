@@ -1,22 +1,30 @@
-const CACHE='wa-ops-v3-20260828-wp-28day';
-const STATE='wa-ops-v3-state';
-const STATIC=['./','./dashboard.html','./dashboard.css','./dashboard.js','./dashboard-extras.js','./dashboard-extras-core.js','./v3.css','./swin-workbench.css','./map-controls-hotfix.css','./gridpulse-header.css','./v3-intelligence.js','./v3-areas.js','./v3-environment.js','./v3-map-areas.js','./v3-refinements.js','./swin-focus.js','./swin-header-picture.js','./swin-workbench.js','./swin-zones.js','./operational-facilities.js','./gridpulse-brand.js','./main-roads-cleanup.js','./weather-overlays.js','./wp-source-clarity.js','./wp-live-guard.js','./manifest.webmanifest','./icon-192.svg','./icon-512.svg'];
-const SWIN_RING=[[-27.55,114.05],[-27.45,114.55],[-28.35,115.70],[-29.10,116.25],[-29.80,116.60],[-30.50,117.20],[-30.60,118.50],[-30.80,119.60],[-30.45,121.00],[-30.45,121.75],[-31.40,122.00],[-31.55,120.60],[-31.85,119.40],[-32.45,118.75],[-33.20,120.20],[-33.75,120.10],[-34.10,119.75],[-34.55,119.50],[-35.10,118.35],[-35.15,117.60],[-35.05,116.90],[-34.70,116.20],[-34.35,115.20],[-33.85,114.90],[-33.25,115.10],[-32.60,115.60],[-31.95,115.65],[-31.25,115.40],[-30.55,115.00],[-29.85,114.80],[-29.10,114.85],[-28.35,114.50]];
-function inSwin(p){if(!p)return false;let inside=false;for(let i=0,j=SWIN_RING.length-1;i<SWIN_RING.length;j=i++){const yi=SWIN_RING[i][0],xi=SWIN_RING[i][1],yj=SWIN_RING[j][0],xj=SWIN_RING[j][1];if(((yi>p.lat)!==(yj>p.lat))&&(p.lon<(xj-xi)*(p.lat-yi)/((yj-yi)||1e-12)+xi))inside=!inside}return inside}
-self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(STATIC)).catch(()=>{}).then(()=>self.skipWaiting())));
-self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('wa-ops-v3-')&&k!==CACHE&&k!==STATE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
-self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==location.origin)return;e.respondWith((async()=>{try{const r=await fetch(e.request,{cache:'reload'});if(r.ok){const c=await caches.open(CACHE);c.put(e.request,r.clone())}return r}catch{const c=await caches.open(CACHE);return(await c.match(e.request))||(e.request.mode==='navigate'?await c.match('./dashboard.html'):Response.error())}})())});
-async function stateGet(name,fallback){try{const c=await caches.open(STATE),r=await c.match(new Request(`https://state.invalid/${name}`));return r?await r.json():fallback}catch{return fallback}}
-async function stateSet(name,data){try{const c=await caches.open(STATE);await c.put(new Request(`https://state.invalid/${name}`),new Response(JSON.stringify(data),{headers:{'Content-Type':'application/json'}}))}catch{}}
-self.addEventListener('message',e=>{const d=e.data||{};if(d.type==='WATCH_CONFIG')e.waitUntil(stateSet('config',d.payload||{}));if(d.type==='SHOW_NOTIFICATION'){const p=d.payload||{};e.waitUntil(self.registration.showNotification(p.title||'GRIDPULSE',p.options||{}))}});
-function flat(c,out=[]){if(!Array.isArray(c))return out;if(c.length>=2&&Number.isFinite(+c[0])&&Number.isFinite(+c[1])){out.push([+c[1],+c[0]]);return out}for(const x of c)flat(x,out);return out}
-function point(i){if(Array.isArray(i?.point)&&Number.isFinite(+i.point[0])&&Number.isFinite(+i.point[1]))return{lat:+i.point[0],lon:+i.point[1]};let a=flat(i?.geometry?.coordinates||[]);if(!a.length){const p=Array.isArray(i?.polygons)&&i.polygons.length?i.polygons[0]:i?.polygon;if(Array.isArray(p))a=p.filter(x=>Array.isArray(x)&&Number.isFinite(+x[0])&&Number.isFinite(+x[1])).map(x=>[+x[0],+x[1]])}if(!a.length)return null;return{lat:a.reduce((s,x)=>s+x[0],0)/a.length,lon:a.reduce((s,x)=>s+x[1],0)/a.length}}
-function dist(a,b){const R=6371,r=x=>x*Math.PI/180,da=r(b.lat-a.lat),dl=r(b.lon-a.lon),x=Math.sin(da/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dl/2)**2;return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
-function type(i){const s=String(i?.source||'').toLowerCase();return s.includes('western')?'wp':s.includes('emergency')?'ewa':s.includes('main roads')?'mr':'bom'}
-function important(i){const t=type(i);if(t==='ewa'||t==='bom')return true;if(t==='wp')return i.outageCategory==='unplanned'||i.planned===false;if(t==='mr')return['closed','incident','signal'].includes(i.category);return false}
-function label(i){const t=type(i);return t==='ewa'?'Emergency':t==='bom'?'Weather warning':t==='wp'?'Power outage':i.categoryLabel||'Road incident'}
-function signature(i){return`${type(i)}:${i.id||i.rawId||i.title||'item'}${type(i)==='wp'?`|${i.estimatedRestorationTime||''}|${i.customersImpacted??''}|${i.tags||''}`:''}`}
-async function watch(){const cfg=await stateGet('config',{});if(!cfg.alerts||!Array.isArray(cfg.locations)||!cfg.locations.length||!cfg.worker)return;try{const r=await fetch(`${cfg.worker}/api/feeds`,{cache:'no-store'});if(!r.ok)return;const d=await r.json(),items=[...(d.bom||[]),...(d.emergency||[]),...(d.westernPower||[]),...(d.mainRoads||[])].filter(important),old=await stateGet('seen',{}),next={};for(const loc of cfg.locations){if(!inSwin({lat:+loc.lat,lon:+loc.lon}))continue;const before=old[loc.id]||{},now={};for(const i of items){const p=point(i);if(!p||!inSwin(p))continue;const km=dist({lat:+loc.lat,lon:+loc.lon},p);if(km>Number(loc.radius||10))continue;const sig=signature(i);now[sig]=Date.now();if(Object.keys(before).length&&!before[sig])await self.registration.showNotification(`${label(i)} near ${loc.name}`,{body:`${i.title||i.affectedArea||label(i)} · ${km.toFixed(1)} km away`,tag:`waops-${loc.id}-${sig}`.slice(0,180),icon:'./icon-192.svg',badge:'./icon-192.svg',renotify:false,data:{url:'./dashboard.html'}})}next[loc.id]=now}await stateSet('seen',next)}catch{}}
-self.addEventListener('periodicsync',e=>{if(e.tag==='wa-ops-watch')e.waitUntil(watch())});
-self.addEventListener('sync',e=>{if(e.tag==='wa-ops-watch')e.waitUntil(watch())});
-self.addEventListener('notificationclick',e=>{e.notification.close();e.waitUntil((async()=>{const all=await clients.matchAll({type:'window',includeUncontrolled:true});for(const c of all){if('focus'in c){await c.focus();if('navigate'in c)await c.navigate('./dashboard.html');return}}if(clients.openWindow)await clients.openWindow('./dashboard.html')})())});
+const CACHE = 'waos-shell-v3';
+const SHELL = ['./', './index.html', './styles.css', './app.js', './config.js', './manifest.webmanifest', './assets/waos-mark.svg'];
+
+self.addEventListener('install', event => {
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
+});
+
+self.addEventListener('activate', event => {
+  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+});
+
+self.addEventListener('fetch', event => {
+  const request = event.request;
+  if (request.method !== 'GET') return;
+  const url = new URL(request.url);
+  if (url.origin !== location.origin) return;
+
+  if (request.mode === 'navigate') {
+    event.respondWith(fetch(request).catch(() => caches.match('./index.html')));
+    return;
+  }
+
+  event.respondWith(caches.match(request).then(cached => cached || fetch(request).then(response => {
+    if (response.ok) {
+      const copy = response.clone();
+      caches.open(CACHE).then(cache => cache.put(request, copy));
+    }
+    return response;
+  })));
+});
