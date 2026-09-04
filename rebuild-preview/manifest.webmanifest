@@ -1,0 +1,13 @@
+{
+  "name": "WA Operations Dashboard",
+  "short_name": "WAOS",
+  "description": "Personal Western Australian situational-awareness dashboard.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#071019",
+  "theme_color": "#071019",
+  "icons": [
+    {"src":"assets/waos-mark.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
+}
