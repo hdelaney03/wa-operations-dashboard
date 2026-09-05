@@ -135,7 +135,7 @@
   function makeBasemapLayers() {
     if (typeof L === 'undefined') return {};
     return {
-      streets: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      streets: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'
       }),
@@ -882,8 +882,12 @@
   }
 
   function registerServiceWorker() {
-    if ('serviceWorker' in navigator && location.protocol === 'https:') {
-      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.getRegistrations()
+      .then(registrations => Promise.all(registrations.map(reg => reg.unregister())))
+      .catch(() => {});
+    if ('caches' in window) {
+      caches.keys().then(keys => Promise.all(keys.map(key => caches.delete(key)))).catch(() => {});
     }
   }
 
