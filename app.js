@@ -15,13 +15,14 @@
     incidents: { label: 'Emergency WA Incidents', short: 'Incidents', colour: '#de7cff' },
     bom: { label: 'Bureau of Meteorology', short: 'BOM', colour: '#63a8ff' },
     fdr: { label: 'Fire Danger Ratings', short: 'Fire danger', colour: '#f6c85f' },
-    tfb: { label: 'Total Fire Bans', short: 'Total fire ban', colour: '#ff8b47' }
+    tfb: { label: 'Total Fire Bans', short: 'Total fire ban', colour: '#ff8b47' },
+    westernPower: { label: 'Western Power', short: 'Power outage', colour: '#ff646d' }
   };
 
   const DEFAULT_PREFS = {
     theme: 'dark',
     basemap: CONFIG.defaultBasemap || 'streets',
-    layers: { emergency: true, incidents: true, bom: true, fdr: true, tfb: true, weather: true, places: false },
+    layers: { emergency: true, incidents: true, bom: true, fdr: true, tfb: true, wpUnplanned: true, wpPlanned: true, weather: true, places: false },
     drawerOpen: true,
     panel: 'layers'
   };
@@ -32,7 +33,7 @@
     baseLayers: {},
     activeBasemap: null,
     overlayGroups: {},
-    items: { emergency: [], incidents: [], bom: [], fdr: [], tfb: [] },
+    items: { emergency: [], incidents: [], bom: [], fdr: [], tfb: [], westernPower: [] },
     sourceStatus: {},
     feedUpdatedAt: null,
     alertFilter: 'all',
@@ -168,6 +169,7 @@
       state.baseLayers = makeBasemapLayers();
       state.overlayGroups = {
         emergency: L.layerGroup(), incidents: L.layerGroup(), bom: L.layerGroup(), fdr: L.layerGroup(), tfb: L.layerGroup(),
+        wpUnplanned: L.layerGroup(), wpPlanned: L.layerGroup(),
         weather: L.layerGroup(), places: L.layerGroup(), search: L.layerGroup(), user: L.layerGroup()
       };
 
@@ -444,8 +446,50 @@
     };
   }
 
+  function geoJsonOuterRings(geometry) {
+    const type = geometry?.type;
+    const coords = geometry?.coordinates;
+    const polygons = type === 'Polygon' ? [coords] : type === 'MultiPolygon' ? coords : [];
+    const rings = [];
+    (Array.isArray(polygons) ? polygons : []).forEach(poly => {
+      const outer = Array.isArray(poly) ? poly[0] : null;
+      const ring = (Array.isArray(outer) ? outer : [])
+        .map(p => Array.isArray(p) ? [Number(p[1]), Number(p[0])] : null)
+        .filter(p => p && p.every(Number.isFinite));
+      if (ring.length >= 3) rings.push(ring);
+    });
+    return rings;
+  }
+
+  function normaliseWesternPower(raw) {
+    const category = ['planned','unplanned'].includes(raw?.outageCategory) ? raw.outageCategory : (raw?.planned === true ? 'planned' : raw?.planned === false ? 'unplanned' : 'unknown');
+    const customers = Number.isFinite(Number(raw?.customersImpacted)) ? Number(raw.customersImpacted) : null;
+    const area = raw?.affectedArea || '';
+    const restoration = raw?.estimatedRestorationTime || null;
+    const description = [
+      customers !== null ? `${customers.toLocaleString('en-AU')} customer${customers === 1 ? '' : 's'} impacted` : '',
+      restoration ? `Estimated restoration ${formatTime(restoration,{includeDate:true})}` : ''
+    ].filter(Boolean).join(' · ');
+    return {
+      id: raw?.id || raw?.incidentRef || raw?.enarNumber || `wp-${Math.random().toString(36).slice(2)}`,
+      source: 'westernPower',
+      title: raw?.title || `${category === 'planned' ? 'Planned' : category === 'unplanned' ? 'Unplanned' : 'Power'} outage${area ? ` – ${area}` : ''}`,
+      description,
+      link: safeUrl(raw?.link || CONFIG.links?.westernPowerOutages, CONFIG.links?.westernPowerOutages || 'https://www.westernpower.com.au/faults-outages/power-outages/'),
+      published: raw?.timeAdded || raw?.outageStartTime || null,
+      outageCategory: category,
+      planned: raw?.planned ?? null,
+      incidentRef: raw?.incidentRef || '',
+      affectedArea: area,
+      customersImpacted: customers,
+      estimatedRestorationTime: restoration,
+      polygons: geoJsonOuterRings(raw?.geometry)
+    };
+  }
+
   function sourceFallback(source) {
     if (source === 'bom') return CONFIG.links?.bomWarnings || 'https://www.bom.gov.au/wa/warnings/';
+    if (source === 'westernPower') return CONFIG.links?.westernPowerOutages || 'https://www.westernpower.com.au/faults-outages/power-outages/';
     return CONFIG.links?.emergencyWA || 'https://www.emergency.wa.gov.au/';
   }
 
@@ -495,6 +539,7 @@
       state.items.bom = (collections.bom || snapshot.bom || []).map(x => normaliseItem(x, 'bom'));
       state.items.fdr = (collections.fdr || snapshot.fdr || []).map(x => normaliseItem(x, 'fdr'));
       state.items.tfb = (collections.tfb || snapshot.tfb || []).map(x => normaliseItem(x, 'tfb'));
+      state.items.westernPower = (collections.westernPower || snapshot.westernPower || []).map(normaliseWesternPower);
       state.sourceStatus = snapshot.sources || {};
       state.feedUpdatedAt = snapshot.updatedAt || null;
       updateAfterFeeds();
@@ -529,7 +574,7 @@
 
   function renderAllMapItems() {
     if (!state.map || typeof L === 'undefined') return;
-    ['emergency', 'incidents', 'bom', 'fdr', 'tfb'].forEach(source => state.overlayGroups[source]?.clearLayers());
+    ['emergency', 'incidents', 'bom', 'fdr', 'tfb', 'wpUnplanned', 'wpPlanned'].forEach(source => state.overlayGroups[source]?.clearLayers());
     state.warningBounds = L.latLngBounds([]);
     let mapped = 0;
     ['emergency', 'incidents', 'bom', 'fdr', 'tfb'].forEach(source => {
@@ -552,6 +597,24 @@
         }
       });
     });
+    state.items.westernPower.forEach(item => {
+      const key = item.outageCategory === 'planned' ? 'wpPlanned' : 'wpUnplanned';
+      const group = state.overlayGroups[key];
+      if (!group) return;
+      const colour = item.outageCategory === 'planned' ? '#f6c85f' : item.outageCategory === 'unplanned' ? '#ff646d' : '#a6bed0';
+      const details = [
+        item.affectedArea ? `<span>${escapeHtml(item.affectedArea)}</span>` : '',
+        item.customersImpacted !== null ? `<br><span><strong>${item.customersImpacted.toLocaleString('en-AU')}</strong> customers impacted</span>` : '',
+        item.estimatedRestorationTime ? `<br><span>Estimated restoration: ${escapeHtml(formatTime(item.estimatedRestorationTime,{includeDate:true}))}</span>` : '',
+        item.incidentRef ? `<br><span>Incident: ${escapeHtml(item.incidentRef)}</span>` : ''
+      ].join('');
+      const popup = `<strong>${escapeHtml(item.title)}</strong><br>${details}<br><a href="${escapeHtml(item.link)}" target="_blank" rel="noopener">Open Western Power outage page</a>`;
+      item.polygons.forEach(ring => {
+        L.polygon(ring, { color: colour, weight: 2.4, opacity: .98, fillColor: colour, fillOpacity: .20 })
+          .bindPopup(popup).addTo(group);
+        mapped++;
+      });
+    });
     state.mappedFeatureCount = mapped;
   }
 
@@ -566,14 +629,15 @@
 
   function updateMapSummary() {
     const count = allItems().length;
+    const outageCount = state.items.westernPower.length;
     const mapped = state.mappedFeatureCount;
     if (state.selectedLocation) return;
     if (!CONFIG.feedProxyBase) {
-      byId('mapSummaryText').textContent = 'Weather live · warning proxy requires configuration';
-    } else if (count === 0) {
-      byId('mapSummaryText').textContent = `No current feed items · refreshed ${relativeAge(state.feedUpdatedAt)}`;
+      byId('mapSummaryText').textContent = 'Weather live · operational feed proxy requires configuration';
+    } else if (count === 0 && outageCount === 0) {
+      byId('mapSummaryText').textContent = `No current operational items · refreshed ${relativeAge(state.feedUpdatedAt)}`;
     } else {
-      byId('mapSummaryText').textContent = `${count} current feed item${count === 1 ? '' : 's'} · ${mapped} mapped feature${mapped === 1 ? '' : 's'}`;
+      byId('mapSummaryText').textContent = `${count} warning/incident item${count === 1 ? '' : 's'} · ${outageCount} power outage${outageCount === 1 ? '' : 's'} · ${mapped} mapped feature${mapped === 1 ? '' : 's'}`;
     }
   }
 
@@ -585,6 +649,10 @@
       const meta = SOURCE_META[source];
       chips.push(`<span class="legend-chip"><i class="legend-dot" style="--legend-colour:${meta.colour}"></i>${escapeHtml(meta.short)}</span>`);
     });
+    const wpUnplanned = state.items.westernPower.filter(x => x.outageCategory !== 'planned').length;
+    const wpPlanned = state.items.westernPower.filter(x => x.outageCategory === 'planned').length;
+    if (state.prefs.layers.wpUnplanned && wpUnplanned) chips.push(`<span class="legend-chip"><i class="legend-dot" style="--legend-colour:#ff646d"></i>Power outage</span>`);
+    if (state.prefs.layers.wpPlanned && wpPlanned) chips.push(`<span class="legend-chip"><i class="legend-dot" style="--legend-colour:#f6c85f"></i>Planned outage</span>`);
     if (state.prefs.layers.weather && state.weather) chips.push(`<span class="legend-chip"><i class="legend-dot" style="--legend-colour:#4fd1c5"></i>Weather</span>`);
     if (state.prefs.layers.places) chips.push(`<span class="legend-chip"><i class="legend-dot" style="--legend-colour:#a6bed0"></i>Places</span>`);
     host.innerHTML = chips.join('');
@@ -633,8 +701,9 @@
       </div>
       <div class="section-label">Electricity network</div>
       <div class="panel-block">
-        ${overlayRow('westernPower','Western Power outages','', '#ff6b6b', true, 'No approved public machine-readable outage layer is configured')}
-        <a class="source-link" href="${escapeHtml(CONFIG.links?.westernPowerOutages || '#')}" target="_blank" rel="noopener"><div><strong>Open official Western Power outage map</strong><span>Launch the authoritative source in a new tab</span></div><svg class="icon"><use href="#i-external"></use></svg></a>
+        ${overlayRow('wpUnplanned','Western Power unplanned outages',`${state.items.westernPower.filter(x => x.outageCategory !== 'planned').length} current · live outage polygons`, '#ff646d', false)}
+        ${overlayRow('wpPlanned','Western Power planned outages',`${state.items.westernPower.filter(x => x.outageCategory === 'planned').length} current · planned outage polygons`, '#f6c85f', false)}
+        <a class="source-link" href="${escapeHtml(CONFIG.links?.westernPowerOutages || '#')}" target="_blank" rel="noopener"><div><strong>Open official Western Power outage map</strong><span>Verify current outage and restoration information</span></div><svg class="icon"><use href="#i-external"></use></svg></a>
       </div>
       ${!proxyConfigured ? `<div class="panel-block"><h3>Feed proxy setup</h3><p class="panel-copy">The map and weather work now. Deploy the included Cloudflare Worker and paste its URL into <code>config.js</code> to enable live BOM/Emergency WA feed cards and overlays.</p></div>` : ''}`;
 
@@ -684,7 +753,7 @@
         ${feedStatusRow('bom','BOM WA warnings')}
         ${feedStatusRow('fdr','Fire Danger Ratings')}
         ${feedStatusRow('tfb','Total Fire Bans')}
-        <div class="feed-row"><span class="status-led warn"></span><div><strong>Western Power outages</strong><span>Official link only — no machine-readable layer</span></div><time>manual</time></div>
+        ${feedStatusRow('westernPower','Western Power outages')}
       </div>
       <div class="status-actions"><button class="button primary" id="refreshAllBtn" type="button"><svg class="icon"><use href="#i-refresh"></use></svg> Refresh all</button></div>
       <div class="section-label">Snapshot</div>
